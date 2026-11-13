@@ -1,0 +1,8 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "networkalert-www",
+  "main": "./index.ts",
+  "compatibility_date": "2026-11-02",
+  "workers_dev": false,
+  "routes": [{ "pattern": "www.networkalert.dev", "custom_domain": true }]
+}

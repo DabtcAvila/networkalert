@@ -17,7 +17,8 @@
     "vigia": "node ingest/vigia.mjs",
     "preview": "astro build && wrangler dev",
     "deploy:preview": "astro build && wrangler deploy --env preview",
-    "deploy": "astro build && wrangler deploy"
+    "deploy": "astro build && wrangler deploy",
+    "deploy:www": "wrangler deploy -c www/wrangler.jsonc"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
