@@ -11,16 +11,24 @@
  *  GET  /feed.xml · /feed.json      alertas altas y críticas (RSS 2.0 / JSON Feed 1.1)
  *  GET  /badge.svg                  insignia del nivel actual
  *  POST /api/ingest                 recibe la instantánea del recolector (Bearer NA_INGEST_KEY)
+ *  GET  /api/v1/check?domain=   revisa un dominio desde fuera (certificado, vencimiento, correo, redirecciones)
  *  GET  /api/donar/estado           ¿están abiertas las donaciones?
  *  POST /api/donar                  crea el cobro en Mercado Pago y devuelve el enlace de pago
  *
  * Convenciones: respuestas planas con procedencia arriba,
  * errores {"detail": …}, CORS abierto para lectura, Cache-Control corto y explícito.
  */
+import { normaliza, revisar } from './revisar';
+import { aplica, completa, type IA, type Mapa } from './traducir';
+
 interface Env {
   ASSETS: { fetch: typeof fetch };
   NA_KV: KVNamespace;
   LIMITE?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+  // Límite propio, más estricto, para la revisión de dominios (cada una hace varias consultas hacia fuera).
+  LIMITE_REVISAR?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+  // Workers AI: traduce los títulos al español (cuota gratuita). Sin este enlace, los títulos quedan en su idioma original.
+  AI?: IA;
   NA_INGEST_KEY?: string;
   // Donaciones: Access Token de la aplicación de Mercado Pago del titular (`wrangler secret put MP_ACCESS_TOKEN`).
   MP_ACCESS_TOKEN?: string;
@@ -30,6 +38,7 @@ interface Env {
 const VERSION = '1.0.0';
 const SITIO = 'https://networkalert.dev';
 const CLAVE = 'snapshot:v1';
+const CLAVE_TITULOS = 'titulos:es:v1';
 const CUERPO_MAX = 2 * 1024 * 1024;
 const ORDEN: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 const NOTAS = [
@@ -38,7 +47,7 @@ const NOTAS = [
   'Una alerta con `stale: true` viene de una fuente que falló en la última lectura; se conserva el último dato conocido.',
 ];
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; summary?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
 type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, unknown>; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
@@ -75,7 +84,7 @@ function alertas(s: Snapshot, q: URLSearchParams): Response {
     (!cat || cat.includes(a.category)) && (!sev || sev.includes(a.severity)) && (!fuente || fuente.includes(a.source)) &&
     (!pais || a.countries.some((c) => pais.includes(c.toLowerCase()))) && (!eti || a.tags.some((t) => eti.includes(t.toLowerCase()))) &&
     (!minSev || ORDEN[a.severity] <= ORDEN[minSev]) && (desde === null || Date.parse(a.first_seen) >= desde) &&
-    (!texto || `${a.title} ${a.summary ?? ''} ${a.tags.join(' ')} ${JSON.stringify(a.extra ?? {})}`.toLowerCase().includes(texto)));
+    (!texto || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.tags.join(' ')} ${JSON.stringify(a.extra ?? {})}`.toLowerCase().includes(texto)));
   return json({ ...procedencia(s), total: todas.length, returned: Math.min(todas.length, limite), alerts: todas.slice(0, limite) });
 }
 
@@ -85,7 +94,7 @@ function feedRss(s: Snapshot): Response {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
 <title>Network Alert · alertas altas y críticas</title><link>${SITIO}</link><atom:link href="${SITIO}/feed.xml" rel="self" type="application/rss+xml"/>
 <description>Vulnerabilidades explotadas, caídas de plataformas y cortes de Internet que pueden afectar tus sitios.</description><language>es-MX</language><lastBuildDate>${new Date(s.generated_at).toUTCString()}</lastBuildDate><ttl>10</ttl>
-${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(a.first_seen).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml(a.summary ?? '')}</description></item>`).join('\n')}
+${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(a.first_seen).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml(a.summary ?? '')}</description></item>`).join('\n')}
 </channel></rss>`;
   return responde(cuerpo, 'application/rss+xml; charset=utf-8', 'public, max-age=300');
 }
@@ -93,7 +102,7 @@ ${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA
 function feedJson(s: Snapshot): Response {
   const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(b.first_seen) - Date.parse(a.first_seen)).slice(0, 60);
   return responde(JSON.stringify({ version: 'https://jsonfeed.org/version/1.1', title: 'Network Alert · alertas altas y críticas', home_page_url: SITIO, feed_url: `${SITIO}/feed.json`, language: 'es-MX',
-    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title, content_text: a.summary ?? '', date_published: a.first_seen, tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
+    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: a.summary ?? '', date_published: a.first_seen, tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
 }
 
 function insignia(s: Snapshot | null): Response {
@@ -111,7 +120,7 @@ async function llaveValida(dada: string, real: string): Promise<boolean> {
   return d === 0;
 }
 
-async function ingest(request: Request, env: Env): Promise<Response> {
+async function ingest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!env.NA_INGEST_KEY) return fallo(503, 'Ingestión no configurada.');
   const dada = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
   if (!dada || !(await llaveValida(dada, env.NA_INGEST_KEY))) return fallo(401, 'No autorizado.');
@@ -121,8 +130,17 @@ async function ingest(request: Request, env: Env): Promise<Response> {
   try { s = JSON.parse(texto) as Snapshot; } catch { return fallo(400, 'JSON inválido.'); }
   if (s?.version !== 1 || !Array.isArray(s.alerts) || !Array.isArray(s.sources) || !s.status?.level || Number.isNaN(Date.parse(s.generated_at))) return fallo(422, 'La instantánea no cumple el esquema v1.');
   if (s.alerts.some((a) => !a.id || !a.title || !/^https:\/\//.test(a.url))) return fallo(422, 'Hay alertas sin fuente enlazada.');
-  await env.NA_KV.put(CLAVE, texto);
-  memo = { t: Date.now(), texto, datos: s };
+  // Títulos en español: se aplican los ya traducidos y, tras responder, se traducen los nuevos.
+  const mapa = ((await env.NA_KV.get(CLAVE_TITULOS, 'json').catch(() => null)) as Mapa | null) ?? {};
+  aplica(s.alerts, mapa);
+  const guarda = async () => { const t = JSON.stringify(s); await env.NA_KV.put(CLAVE, t); memo = { t: Date.now(), texto: t, datos: s }; };
+  await guarda();
+  if (env.AI) ctx.waitUntil((async () => {
+    if (!(await completa(env.AI!, s.alerts, mapa))) return;
+    await env.NA_KV.put(CLAVE_TITULOS, JSON.stringify(mapa));
+    aplica(s.alerts, mapa);
+    await guarda();
+  })().catch((e) => console.error('traducir', String(e))));
   return json({ ok: true, alerts: s.alerts.length, generated_at: s.generated_at }, 'no-store');
 }
 
@@ -175,13 +193,34 @@ async function donar(request: Request, env: Env, origen: string): Promise<Respon
   return json({ url: enlace, referencia: ref }, 'no-store');
 }
 
+// Revisión de un dominio. Se cachea 10 minutos por dominio para no repetir consultas hacia fuera.
+async function revisa(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
+  const dado = url.searchParams.get('domain') ?? '';
+  const dominio = normaliza(dado);
+  if (!dominio) return fallo(422, [{ type: 'domain', loc: ['query', 'domain'], msg: 'Escribe un dominio público, por ejemplo: ejemplo.com', input: dado.slice(0, 80) }]);
+  const llave = new Request(`${SITIO}/__revisar/v2/${dominio}`);
+  const cache = (caches as unknown as { default: Cache }).default;
+  const previa = await cache.match(llave).catch(() => undefined);
+  if (previa) return previa;
+  if (env.LIMITE_REVISAR) {
+    const { success } = await env.LIMITE_REVISAR.limit({ key: request.headers.get('cf-connecting-ip') ?? 'anon' });
+    if (!success) return fallo(429, 'Demasiadas revisiones seguidas. Espera un minuto.', { 'Retry-After': '60' });
+  }
+  // El propio sitio se lee de sus archivos: un Worker no puede pedirse a sí mismo por la red.
+  const r = await revisar(dominio, dominio === url.hostname ? (u) => env.ASSETS.fetch(new Request(u)) : undefined);
+  if (!r) return fallo(404, `El dominio ${dominio} no existe o no tiene DNS.`);
+  const res = json(r, 'public, max-age=600');
+  ctx.waitUntil(cache.put(llave, res.clone()).catch(() => {}));
+  return res;
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const ruta = url.pathname.replace(/\/$/, '') || '/';
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...BASE, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Max-Age': '86400' } });
-    if (ruta === '/api/ingest') return request.method === 'POST' ? ingest(request, env) : fallo(405, 'Método no permitido.', { Allow: 'POST' });
+    if (ruta === '/api/ingest') return request.method === 'POST' ? ingest(request, env, ctx) : fallo(405, 'Método no permitido.', { Allow: 'POST' });
     const esDonar = ruta === '/api/donar' && request.method === 'POST';
     if (!esDonar && request.method !== 'GET' && request.method !== 'HEAD') return fallo(405, 'Método no permitido.', { Allow: ruta === '/api/donar' ? 'POST' : 'GET, HEAD, OPTIONS' });
 
@@ -192,6 +231,8 @@ export default {
     if (esDonar) return donar(request, env, url.origin);
     if (ruta === '/api/donar') return fallo(405, 'Método no permitido.', { Allow: 'POST' });
     if (ruta === '/api/donar/estado') return json({ abierto: mpListo(env), minimo_mxn: DON_MIN, maximo_mxn: DON_MAX }, 'no-store');
+
+    if (ruta === '/api/v1/check') return revisa(request, env, ctx, url);
 
     const snap = await leer(env);
     if (ruta === '/health') {

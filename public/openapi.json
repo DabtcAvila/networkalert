@@ -37,6 +37,10 @@
   {
    "name": "feeds",
    "description": "Sindicación de alertas altas y críticas."
+  },
+  {
+   "name": "herramientas",
+   "description": "Revisiones a pedido."
   }
  ],
  "paths": {
@@ -521,6 +525,133 @@
      }
     }
    }
+  },
+  "/api/v1/check": {
+   "get": {
+    "tags": [
+     "herramientas"
+    ],
+    "operationId": "check",
+    "summary": "Revisa un dominio desde fuera",
+    "description": "Revisa con datos públicos que el dominio abra por HTTPS, cuándo vencen su certificado y su registro, SPF, DMARC, redirecciones de http y www, cabeceras de seguridad, DNSSEC, CAA y security.txt. No guarda el dominio ni el resultado. Caché de 10 minutos por dominio; 12 revisiones por minuto por IP.",
+    "parameters": [
+     {
+      "name": "domain",
+      "in": "query",
+      "required": true,
+      "description": "Dominio público, sin https:// ni ruta.",
+      "schema": {
+       "type": "string",
+       "example": "example.com"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Resultado de la revisión",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "domain",
+          "checked_at",
+          "verdict",
+          "summary",
+          "findings"
+         ],
+         "properties": {
+          "domain": {
+           "type": "string"
+          },
+          "checked_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "verdict": {
+           "type": "string",
+           "enum": [
+            "urgent",
+            "fix",
+            "improve",
+            "ok"
+           ]
+          },
+          "summary": {
+           "type": "object",
+           "properties": {
+            "urgent": {
+             "type": "integer"
+            },
+            "fix": {
+             "type": "integer"
+            },
+            "improve": {
+             "type": "integer"
+            },
+            "ok": {
+             "type": "integer"
+            }
+           }
+          },
+          "findings": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "required": [
+             "level",
+             "key",
+             "title"
+            ],
+            "properties": {
+             "level": {
+              "type": "string",
+              "enum": [
+               "urgent",
+               "fix",
+               "improve",
+               "ok"
+              ]
+             },
+             "key": {
+              "type": "string"
+             },
+             "title": {
+              "type": "string",
+              "description": "Qué pasa, en lenguaje claro."
+             },
+             "action": {
+              "type": "string",
+              "description": "Qué hacer."
+             }
+            }
+           }
+          },
+          "details": {
+           "type": "object"
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "El dominio no existe o no tiene DNS."
+     },
+     "422": {
+      "description": "No es un dominio público válido."
+     },
+     "429": {
+      "description": "Demasiadas revisiones seguidas."
+     }
+    }
+   }
   }
  },
  "components": {
@@ -566,7 +697,12 @@
       ]
      },
      "title": {
-      "type": "string"
+      "type": "string",
+      "description": "Título como lo publica la fuente."
+     },
+     "title_es": {
+      "type": "string",
+      "description": "Traducción automática al español. Puede faltar; usa `title` en ese caso."
      },
      "summary": {
       "type": "string"

@@ -16,7 +16,12 @@
   "observability": { "enabled": true },
   // La llave del recolector (NA_INGEST_KEY) va con `wrangler secret put`, nunca aquí.
   "kv_namespaces": [{ "binding": "NA_KV", "id": "af05eed469d5456daf6b33b8899e0cc8" }],
-  "ratelimits": [{ "name": "LIMITE", "namespace_id": "7101", "simple": { "limit": 120, "period": 60 } }],
+  "ratelimits": [
+    { "name": "LIMITE", "namespace_id": "7101", "simple": { "limit": 120, "period": 60 } },
+    { "name": "LIMITE_REVISAR", "namespace_id": "7103", "simple": { "limit": 12, "period": 60 } }
+  ],
+  // Workers AI (cuota gratuita): traduce los títulos de las alertas al español.
+  "ai": { "binding": "AI" },
   "env": {
     // Preview: networkalert-preview.<cuenta>.workers.dev, mismo código, sin dominio.
     "preview": {
@@ -32,7 +37,11 @@
         "run_worker_first": ["/api/*", "/health", "/feed.xml", "/feed.json", "/badge.svg"]
       },
       "kv_namespaces": [{ "binding": "NA_KV", "id": "161767bc071e4fee8f0a0bb31e5fa05e" }],
-      "ratelimits": [{ "name": "LIMITE", "namespace_id": "7102", "simple": { "limit": 120, "period": 60 } }],
+      "ratelimits": [
+        { "name": "LIMITE", "namespace_id": "7102", "simple": { "limit": 120, "period": 60 } },
+        { "name": "LIMITE_REVISAR", "namespace_id": "7104", "simple": { "limit": 12, "period": 60 } }
+      ],
+      "ai": { "binding": "AI" },
       "observability": { "enabled": true }
     }
   }

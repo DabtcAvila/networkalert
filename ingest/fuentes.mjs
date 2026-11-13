@@ -40,7 +40,8 @@ async function kev() {
     source: 'cisa-kev',
     category: 'vulnerability',
     severity: v.knownRansomwareCampaignUse === 'Known' ? 'critical' : 'high',
-    title: `${v.vendorProject} ${v.product}: ${v.vulnerabilityName}`,
+    // El nombre que da CISA ya suele empezar con fabricante y producto; no se repiten.
+    title: String(v.vulnerabilityName ?? '').toLowerCase().startsWith(String(v.vendorProject ?? '').toLowerCase()) ? v.vulnerabilityName : `${v.vendorProject} ${v.product}: ${v.vulnerabilityName}`,
     summary: recorta(v.shortDescription),
     url: `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=${v.cveID}`,
     published: iso(v.dateAdded),

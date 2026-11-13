@@ -8,7 +8,7 @@ Cada alerta incluye:
 - Fecha de publicación en la fuente y fecha en que Network Alert la vio por primera vez (`first_seen`)
 - Licencia de la fuente (ver `sources[].license`)
 
-Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vulnerabilidades sin aviso público, incidentes que el proveedor no ha reconocido, ni el estado de los dominios de quien consulta.
+Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vulnerabilidades sin aviso público, incidentes que el proveedor no ha reconocido, ni el estado de los dominios de quien consulta (para eso está la revisión de dominio).
 
 ## API (sin llave, CORS abierto, caché 60 s)
 
@@ -16,6 +16,7 @@ Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vuln
 - [Alertas](https://networkalert.dev/api/v1/alerts): filtros category, severity, min_severity, source, country, tag, q, since, limit
 - [Plataformas](https://networkalert.dev/api/v1/platforms): estado de hosting, pagos, repositorios y mensajería
 - [Fuentes](https://networkalert.dev/api/v1/sources): catálogo con licencia y última lectura
+- [Revisar un dominio](https://networkalert.dev/api/v1/check?domain=example.com): candado, vencimiento del certificado y del dominio, SPF, DMARC, redirecciones y cabeceras, con hallazgos en lenguaje claro
 - [Instantánea completa](https://networkalert.dev/api/v1/snapshot.json)
 - [OpenAPI 3.1](https://networkalert.dev/openapi.json)
 

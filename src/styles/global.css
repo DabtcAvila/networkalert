@@ -950,3 +950,19 @@ a.chip:hover { text-decoration: none; }
   .site-header, .site-footer, .portada__pulsos, .portada__pausa, .filtros { display: none !important; }
   body { background: #fff; color: #000; }
 }
+
+/* ---------- Revisa tu dominio ---------- */
+.revisar { max-width: 720px; }
+.revisar__form { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.revisar__form .buscador { flex: 1 1 240px; min-width: 0; min-height: 56px; padding-inline: var(--s-5); font-size: var(--fs-400); border-radius: var(--radio-s); }
+.revisar__form .btn { min-height: 56px; padding-inline: var(--s-6); }
+.revisar__form .btn[disabled] { opacity: 0.6; cursor: progress; }
+.revisar__resultado { scroll-margin-top: 96px; }
+.revisar__cab { --c: var(--sev-ok); display: grid; gap: var(--s-3); padding: var(--s-5); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: var(--radio); background: #fff; box-shadow: var(--sombra); }
+.revisar__cab[data-nivel='urgent'] { --c: var(--sev-critical); } .revisar__cab[data-nivel='fix'] { --c: var(--sev-high); } .revisar__cab[data-nivel='improve'] { --c: var(--sev-low); }
+.revisar__cab h2:focus { outline: none; }
+.revisar__cuentas { list-style: none; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); font-size: var(--fs-200); color: var(--ink-2); }
+.revisar__cuentas li { --c: var(--sev-ok); display: inline-flex; align-items: baseline; gap: 6px; }
+.revisar__cuentas li[data-nivel='urgent'] { --c: var(--sev-critical); } .revisar__cuentas li[data-nivel='fix'] { --c: var(--sev-high); } .revisar__cuentas li[data-nivel='improve'] { --c: var(--sev-low); }
+.revisar__cuentas strong { font-size: var(--fs-500); font-weight: 700; color: var(--c); font-variant-numeric: tabular-nums; }
+.alerta[data-sev='ok'] { --c: var(--sev-ok); }

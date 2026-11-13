@@ -32,6 +32,7 @@ const perfiles = [
   { id: 'negocio', t: 'Si tienes un negocio en línea', h: 'Saber si es grave', p: 'Si tu página no carga, aquí ves si es tu proveedor o Internet.', puntos: ['Sin tecnicismos', 'México siempre visible', 'Fuente oficial a un clic'], cta: ['Ver qué vigilar', '/guia'] },
 ];
 const recursos = [
+  { t: 'Herramienta', h: 'Revisa tu dominio', href: '/revisar', d: 'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6l8-3zM9 12l2 2 4-4' },
   { t: 'Guía', h: 'Catorce cosas que vigilar', href: '/guia', d: 'M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2' },
   { t: 'Metodología', h: 'Calcula el nivel del día', href: '/metodologia#nivel', d: 'M4 18a8 8 0 0116 0M12 18l4-6M12 4v2M4.900 7.900l1.400 1.400M19.100 7.900l-1.400 1.400' },
   { t: 'API', h: 'Pruébala en vivo', href: '/api#consola', d: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14' },
@@ -48,7 +49,7 @@ const codigo = [
 <Base title={`${SITE.name} · ${SITE.lema}`} rawTitle description={SITE.descripcion}>
   <Portada eyebrow="Gratis · se actualiza cada 10 minutos" lead="Fallas en ataque, proveedores caídos y cortes de Internet. Sin registro y con la fuente a un clic.">
     <a class="btn btn--primary" href="/alertas">Ver las alertas</a>
-    <a class="btn btn--secondary" href="/guia">¿Qué debo vigilar?</a>
+    <a class="btn btn--secondary" href="/revisar">Revisa tu dominio</a>
   </Portada>
 
   <section class="banda banda--hoy" id="alertas" aria-labelledby="hoy-titulo">
@@ -165,7 +166,7 @@ const codigo = [
       <ul class="ayudas">
         {vigilar.map((v) => <li class="rev"><a class="ayuda" href="/guia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={v.d} /></svg><strong>{v.t}</strong></a></li>)}
       </ul>
-      <p class="center"><a class="btn btn--claro" href="/guia">Abrir la guía</a></p>
+      <p class="cluster" style="justify-content:center"><a class="btn btn--claro" href="/guia">Abrir la guía</a><a class="enlace-flecha" href="/revisar">Revisa tu dominio</a></p>
     </div>
   </section>
 

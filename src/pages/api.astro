@@ -6,6 +6,7 @@ const rutas = [
   ['GET', '/api/v1/alerts', 'Alertas, con filtros.'],
   ['GET', '/api/v1/platforms', 'Estado de cada plataforma.'],
   ['GET', '/api/v1/sources', 'Fuentes, licencia y última lectura.'],
+  ['GET', '/api/v1/check?domain=', 'Revisa un dominio desde fuera.'],
   ['GET', '/api/v1/snapshot.json', 'Todo en una respuesta (120 KB).'],
   ['GET', '/feed.xml', 'RSS de alertas altas y críticas.'],
   ['GET', '/feed.json', 'Lo mismo en JSON Feed.'],
@@ -52,7 +53,8 @@ test "$(curl -s https://networkalert.dev/api/v1/status | jq -r .status.level)" !
   "source": "cisa-kev",
   "category": "vulnerability",
   "severity": "critical",
-  "title": "…",
+  "title": "…",                  // como lo publica la fuente
+  "title_es": "…",               // traducción automática; puede faltar
   "summary": "…",
   "url": "https://…",            // fuente primaria, siempre https
   "published": "2026-11-12T00:00:00.000Z",

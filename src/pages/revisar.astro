@@ -1,0 +1,77 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+
+const revisa = [
+  { t: 'Que abra con candado', p: 'Y que quien entra sin candado llegue a la versión segura.', d: 'M6 11V8a6 6 0 0112 0v3M5 11h14v10H5zM12 15v3' },
+  { t: 'Cuándo vence el candado', p: 'Si vence, los navegadores avisan «sitio no seguro».', d: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2' },
+  { t: 'Cuándo vence el dominio', p: 'Si vence, se caen el sitio y el correo.', d: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4' },
+  { t: 'Correos falsos a tu nombre', p: 'Si cualquiera puede enviar correo que parece tuyo.', d: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  { t: 'La dirección con www', p: 'Que no dé error ni muestre una copia.', d: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18' },
+  { t: 'Protecciones básicas', p: 'Las que piden los navegadores a un sitio cuidado.', d: 'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6l8-3zM9 12l2 2 4-4' },
+];
+const noHace = [
+  'No entra a tu servidor ni prueba contraseñas.',
+  'No guarda el dominio ni el resultado.',
+  'No reemplaza una auditoría de seguridad.',
+  'No ve lo que pasa dentro de tu hospedaje.',
+];
+---
+<Base title="Revisa tu dominio" description="Escribe tu dominio y mira en segundos qué atender: candado, vencimiento, correo falso a tu nombre y redirecciones. Gratis y sin registro.">
+  <Portadilla eyebrow="Herramienta gratuita" titulo="Revisa <em>tu dominio</em>" lead="Escríbelo y te decimos qué atender. Sin registro." ilustracion="privacidad" />
+
+  <section class="banda" aria-labelledby="revisar-titulo"><div class="container stack--lg stack">
+    <div class="revisar stack">
+      <h2 id="revisar-titulo" class="visually-hidden">Revisar un dominio</h2>
+      <form class="revisar__form" id="revisar-form" role="search" novalidate>
+        <input class="buscador" id="revisar-dominio" name="d" type="text" inputmode="url" placeholder="tudominio.com" aria-label="Dominio a revisar" autocomplete="off" autocapitalize="none" spellcheck="false" required />
+        <button class="btn btn--primary" type="submit" id="revisar-boton">Revisar</button>
+      </form>
+      <p class="meta">Lo vemos desde fuera, como cualquier visitante. Tarda unos segundos.</p>
+      <noscript><p class="aviso">Esta herramienta necesita JavaScript. También puedes usar <a href="/api">la API</a>.</p></noscript>
+      <p class="aviso" id="revisar-espera" hidden role="status">Revisando <strong id="revisar-espera-dominio"></strong>…</p>
+      <p class="aviso aviso--error" id="revisar-error" hidden role="alert"></p>
+    </div>
+
+    <div class="revisar__resultado stack" id="revisar-resultado" hidden aria-live="polite">
+      <header class="revisar__cab" id="revisar-cab" data-nivel="ok">
+        <p class="eyebrow mono" id="revisar-nombre"></p>
+        <h2 class="display display--600" id="revisar-veredicto" tabindex="-1"></h2>
+        <ul class="revisar__cuentas">
+          <li data-nivel="urgent"><strong id="n-urgent">0</strong> urgentes</li>
+          <li data-nivel="fix"><strong id="n-fix">0</strong> por atender</li>
+          <li data-nivel="improve"><strong id="n-improve">0</strong> mejoras</li>
+          <li data-nivel="ok"><strong id="n-ok">0</strong> bien</li>
+        </ul>
+      </header>
+      <ul class="alertas" id="revisar-lista"></ul>
+      <p class="cluster">
+        <button class="btn btn--secondary btn--small" type="button" id="revisar-copiar">Copiar enlace a este resultado</button>
+        <a class="enlace-flecha" id="revisar-json" href="/api">Ver en JSON</a>
+      </p>
+      <p class="meta" id="revisar-pie"></p>
+    </div>
+  </div></section>
+
+  <section class="banda tono-noche" aria-labelledby="que-revisa-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="que-revisa-titulo" class="display display--600">Qué <em>revisa</em></h2></header>
+    <ul class="rasgos">
+      {revisa.map((x) => <li class="rasgo rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={x.d} /></svg><h3>{x.t}</h3><p>{x.p}</p></li>)}
+    </ul>
+  </div></section>
+
+  <section class="banda" aria-labelledby="nohace-titulo"><div class="container fila">
+    <div class="stack rev">
+      <h2 id="nohace-titulo" class="display display--600">Lo que <em>no hace</em></h2>
+      <p class="lead">Solo lee lo que cualquiera puede ver desde Internet.</p>
+      <p class="cluster"><a class="btn btn--primary" href="/guia">Qué más vigilar</a><a class="enlace-flecha" href="/api">Usarlo desde la API</a></p>
+    </div>
+    <ul class="nove">
+      {noHace.map((t) => <li class="rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>{t}</li>)}
+    </ul>
+  </div></section>
+</Base>
+
+<script>
+  import '../scripts/revisar';
+</script>

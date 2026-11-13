@@ -1,7 +1,7 @@
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; summary?: string; url: string; published: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; url: string; published: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
 type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; alerts: Alerta[]; sources: Fuente[] };
@@ -58,7 +58,7 @@ function pintaDestacada() {
   if (!caja || !t || !sub || !cab || !barra) return;
   caja.dataset.sev = a.severity;
   cab.textContent = `Lo más urgente · ${iDest + 1} de ${destacadas.length}`;
-  t.textContent = a.title;
+  t.textContent = a.title_es ?? a.title;
   sub.textContent = `${SEV[a.severity] ?? ''} · ${datos?.sources.find((f) => f.id === a.source)?.name ?? a.source} · ${hace(a.published)}`;
   caja.href = enlaceSeguro(a.url); caja.target = '_blank'; caja.rel = 'noopener noreferrer';
   t.classList.remove('entra'); barra.classList.remove('corre'); void barra.offsetWidth; t.classList.add('entra');
@@ -116,7 +116,7 @@ function tarjeta(a: Alerta): HTMLLIElement {
       h('span', {}, datos?.sources.find((f) => f.id === a.source)?.name ?? a.source),
       h('time', { datetime: a.published }, hace(a.published)),
       nuevo && h('span', { class: 'tag tag--nuevo' }, 'Nuevo')),
-    h('h3', { class: 'alerta__titulo' }, h('a', { href: enlaceSeguro(a.url), rel: 'noopener noreferrer', target: '_blank' }, a.title)),
+    h('h3', { class: 'alerta__titulo' }, h('a', { href: enlaceSeguro(a.url), rel: 'noopener noreferrer', target: '_blank', ...(a.title_es ? { title: `Original: ${a.title.trim()}` } : {}) }, a.title_es ?? a.title)),
     !!a.summary && h('p', { class: 'alerta__resumen' }, a.summary),
     h('p', { class: 'alerta__pie' }, ...pie));
 }
@@ -126,7 +126,7 @@ function pintaAlertas(s: Snapshot) {
   const q = busca.trim().toLowerCase();
   const visibles = s.alerts.filter((a) =>
     (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'mexico' ? a.countries.includes('MX') : a.category === filtro) &&
-    (!q || `${a.title} ${a.summary ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
+    (!q || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
   lista.replaceChildren(...visibles.slice(0, limite).map(tarjeta));
   const vacio = $('alertas-vacio');
   if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : 'Sin alertas en esta categoría.'; }
@@ -148,7 +148,7 @@ function pintaHoy(s: Snapshot) {
   const top = s.alerts.filter((a) => !a.stale && a.status === 'active').slice(0, 4);
   ul.replaceChildren(...top.map((a) => h('li', { class: 'hoy__fila', 'data-sev': a.severity },
     h('span', { class: 'sev' }, SEV[a.severity] ?? a.severity),
-    h('a', { class: 'hoy__titulo', href: enlaceSeguro(a.url), target: '_blank', rel: 'noopener noreferrer' }, a.title),
+    h('a', { class: 'hoy__titulo', href: enlaceSeguro(a.url), target: '_blank', rel: 'noopener noreferrer' }, a.title_es ?? a.title),
     h('span', { class: 'hoy__meta' }, `${s.sources.find((f) => f.id === a.source)?.name ?? a.source} · ${hace(a.published)}`))));
   const todas = $('ver-todas'); if (todas) todas.textContent = `Ver las ${s.alerts.length} alertas`;
 }
