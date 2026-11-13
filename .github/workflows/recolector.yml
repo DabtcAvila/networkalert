@@ -1,7 +1,8 @@
 # Recolector: lee todas las fuentes y publica la instantánea en networkalert.dev cada 10 minutos.
 # Requiere el secreto NA_INGEST_KEY (la misma llave que `wrangler secret put NA_INGEST_KEY`).
 # Opcional: CF_RADAR_TOKEN (token gratuito de Cloudflare con permiso Radar:Read) para sumar cortes verificados.
-# Nota: el cron de GitHub puede atrasarse varios minutos en horas pico; el sitio avisa si el dato pasa de 45 min.
+# Nota: el cron de GitHub puede atrasarse o no arrancar. El reloj principal es el Worker (cron de Cloudflare cada
+# 5 minutos), que lanza este workflow por `workflow_dispatch` cuando el dato tiene 9 minutos o más. El `schedule` queda de respaldo.
 name: Recolector
 
 on:

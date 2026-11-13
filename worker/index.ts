@@ -30,6 +30,8 @@ interface Env {
   // Workers AI: traduce los títulos al español (cuota gratuita). Sin este enlace, los títulos quedan en su idioma original.
   AI?: IA;
   NA_INGEST_KEY?: string;
+  // Reloj del recolector: permiso de GitHub limitado a «Actions» de este repositorio (`wrangler secret put GH_DISPATCH_TOKEN`).
+  GH_DISPATCH_TOKEN?: string;
   // Donaciones: Access Token de la aplicación de Mercado Pago del titular (`wrangler secret put MP_ACCESS_TOKEN`).
   MP_ACCESS_TOKEN?: string;
   MP_API_BASE?: string;
@@ -214,7 +216,25 @@ async function revisa(request: Request, env: Env, ctx: ExecutionContext, url: UR
   return res;
 }
 
+// Reloj del recolector. El cron de GitHub Actions puede atrasarse horas o no arrancar; este reloj de Cloudflare
+// corre cada 5 minutos y, si el dato tiene 9 minutos o más, pide a GitHub que ejecute el recolector.
+const REPO = 'DabtcAvila/networkalert';
+async function reloj(env: Env): Promise<void> {
+  if (!env.GH_DISPATCH_TOKEN) return;
+  const texto = await env.NA_KV.get(CLAVE);
+  const edad = texto ? Date.now() - Date.parse((JSON.parse(texto) as Snapshot).generated_at) : Infinity;
+  if (edad < 9 * 60_000) return;
+  const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/recolector.yml/dispatches`, {
+    method: 'POST', signal: AbortSignal.timeout(15_000), body: JSON.stringify({ ref: 'main' }),
+    headers: { Authorization: `Bearer ${env.GH_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'networkalert-reloj', 'Content-Type': 'application/json' },
+  });
+  if (!r.ok) console.error('reloj', r.status, (await r.text()).slice(0, 200));
+}
+
 export default {
+  async scheduled(_evento: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(reloj(env).catch((e) => console.error('reloj', String(e))));
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const ruta = url.pathname.replace(/\/$/, '') || '/';

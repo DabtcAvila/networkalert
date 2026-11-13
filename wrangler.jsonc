@@ -13,6 +13,8 @@
   },
   "routes": [{ "pattern": "networkalert.dev", "custom_domain": true }],
   "workers_dev": false,
+  // Reloj del recolector: cada 5 minutos revisa la edad del dato y, si hace falta, dispara el workflow en GitHub.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "observability": { "enabled": true },
   // La llave del recolector (NA_INGEST_KEY) va con `wrangler secret put`, nunca aquí.
   "kv_namespaces": [{ "binding": "NA_KV", "id": "af05eed469d5456daf6b33b8899e0cc8" }],
@@ -29,6 +31,7 @@
       "workers_dev": true,
       // Imprescindible: sin esto el entorno hereda `routes` y se lleva el dominio de producción.
       "routes": [],
+      "triggers": { "crons": [] },
       "assets": {
         "directory": "./dist",
         "binding": "ASSETS",
