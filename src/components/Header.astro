@@ -1,0 +1,66 @@
+---
+import Marca from './Marca.astro';
+import { NAV } from '../data/site';
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isCurrent = (href: string) => !href.includes('#') && (path === href || path.startsWith(href + '/'));
+---
+<div class="tira" id="tira" data-nivel="">
+  <div class="container tira__in">
+    <a class="tira__nivel" href="/alertas"><i aria-hidden="true"></i><span>Nivel de hoy: <strong id="tira-nivel">…</strong></span><span class="tira__hace" id="tira-hace"></span></a>
+    <span class="tira__enlaces"><a href="/feed.xml">RSS</a><a href="/health">Estado del servicio</a><a href="/#plataformas">¿Se cayó algo?</a></span>
+  </div>
+</div>
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a href="/" class="brand" aria-label="Network Alert, inicio">
+      <Marca class="brand__sello" />
+      <span class="brand__nombre">Network <em>Alert</em></span>
+    </a>
+    <nav class="nav-desktop" aria-label="Principal">
+      {NAV.map((l) => <a href={l.href} aria-current={isCurrent(l.href) ? 'page' : undefined}>{l.label}</a>)}
+      <a class="btn btn--primary btn--small" href="/apoyar">Apoyar</a>
+    </nav>
+    <div class="site-header__mobile">
+      <a class="btn btn--primary btn--small" href="/apoyar">Apoyar</a>
+      <button class="nav-toggle" type="button" popovertarget="menu-movil" popovertargetaction="show" aria-label="Abrir menú">
+        <span class="nav-toggle__icon" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="menu-movil" class="drawer" popover aria-label="Menú de navegación">
+      <div class="drawer__top">
+        <span class="brand__nombre">Network <em>Alert</em></span>
+        <button class="drawer__close" type="button" popovertarget="menu-movil" popovertargetaction="hide">Cerrar</button>
+      </div>
+      <ul class="drawer__links">
+        <li><a href="/" aria-current={path === '/' ? 'page' : undefined}>Inicio</a></li>
+        {NAV.map((l) => <li><a href={l.href} aria-current={isCurrent(l.href) ? 'page' : undefined}>{l.label}</a></li>)}
+      </ul>
+      <div class="drawer__foot">
+        <a class="btn btn--primary btn--block" href="/apoyar">Apoyar el proyecto</a>
+        <p class="center meta"><a href="/feed.xml">RSS</a> · <a href="/correcciones">Correcciones</a> · <a href="/privacidad">Privacidad</a></p>
+      </div>
+    </nav>
+  </div>
+  <div class="lectura" aria-hidden="true"><i></i></div>
+</header>
+
+<script>
+  // Mientras el menú móvil (popover) está abierto, el resto queda inerte y el foco entra al menú; al cerrar, vuelve al botón.
+  const menu = document.getElementById('menu-movil');
+  const toggle = document.querySelector<HTMLButtonElement>('.nav-toggle');
+  if (menu && toggle) {
+    const resto = () => {
+      const fuera = Array.from(document.body.children).filter((el) => el !== menu && !el.contains(menu));
+      const hermanos = menu.parentElement ? Array.from(menu.parentElement.children).filter((el) => el !== menu) : [];
+      return [...fuera, ...hermanos];
+    };
+    menu.addEventListener('toggle', (e) => {
+      const abierto = (e as ToggleEvent).newState === 'open';
+      for (const el of resto()) (el as HTMLElement).inert = abierto;
+      toggle.setAttribute('aria-expanded', String(abierto));
+      if (abierto) menu.querySelector<HTMLElement>('a, button')?.focus();
+      else toggle.focus();
+    });
+    menu.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('a')) (menu as HTMLElement & { hidePopover(): void }).hidePopover(); });
+  }
+</script>

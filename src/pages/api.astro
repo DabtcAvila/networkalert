@@ -1,0 +1,181 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+const rutas = [
+  ['GET', '/api/v1/status', 'Nivel del día y conteos.'],
+  ['GET', '/api/v1/alerts', 'Alertas, con filtros.'],
+  ['GET', '/api/v1/platforms', 'Estado de cada plataforma.'],
+  ['GET', '/api/v1/sources', 'Fuentes, licencia y última lectura.'],
+  ['GET', '/api/v1/snapshot.json', 'Todo en una respuesta (120 KB).'],
+  ['GET', '/feed.xml', 'RSS de alertas altas y críticas.'],
+  ['GET', '/feed.json', 'Lo mismo en JSON Feed.'],
+  ['GET', '/badge.svg', 'Insignia con el nivel.'],
+  ['GET', '/health', 'Estado del servicio.'],
+];
+const params = [
+  ['category', 'vulnerability, platform, connectivity, advisory.'],
+  ['severity', 'critical, high, medium, low, info.'],
+  ['min_severity', 'Esa severidad o mayor.'],
+  ['source', 'Por ejemplo cisa-kev.'],
+  ['country', 'Código de país: MX.'],
+  ['tag', 'Etiqueta exacta: npm.'],
+  ['q', 'Texto libre.'],
+  ['since', 'Fecha ISO; alertas desde entonces.'],
+  ['limit', '1 a 500. Por omisión, 100.'],
+];
+// Peticiones de ejemplo de la consola en vivo (todas GET, todas a este mismo sitio).
+const pruebas = [
+  ['/api/v1/status', 'Nivel del día'],
+  ['/api/v1/alerts?min_severity=high&limit=3', 'Tres alertas altas'],
+  ['/api/v1/alerts?q=next&limit=3', 'Buscar «next»'],
+  ['/api/v1/alerts?country=MX', 'México'],
+  ['/api/v1/platforms', 'Plataformas'],
+  ['/health', 'Salud del servicio'],
+];
+const convenciones = [
+  ['Procedencia arriba', 'Fuente, licencia y fecha en cada respuesta.'],
+  ['Formatos estándar', 'Fechas ISO 8601 y países ISO de dos letras.'],
+  ['Errores claros', 'Siempre {"detail": …}.'],
+  ['Caché de 60 s', 'El dato cambia cada diez minutos.'],
+  ['120 por minuto', 'Por IP. Después, 429.'],
+  ['Versión en la ruta', 'v1 solo crece; lo incompatible irá en v2.'],
+];
+const ejemplos = [
+  { id: 'e-curl', t: 'curl', c: `# ¿Hay algo crítico que mencione Next.js?
+curl "https://networkalert.dev/api/v1/alerts?q=next&min_severity=high"` },
+  { id: 'e-ci', t: 'CI', c: `# Fallar el CI si el nivel del día es alto
+test "$(curl -s https://networkalert.dev/api/v1/status | jq -r .status.level)" != "high"` },
+  { id: 'e-badge', t: 'Insignia', c: `# Insignia en tu README
+![Network Alert](https://networkalert.dev/badge.svg)` },
+  { id: 'e-forma', t: 'Forma de una alerta', c: `{
+  "id": "kev:CVE-2026-12345",
+  "source": "cisa-kev",
+  "category": "vulnerability",
+  "severity": "critical",
+  "title": "…",
+  "summary": "…",
+  "url": "https://…",            // fuente primaria, siempre https
+  "published": "2026-11-12T00:00:00.000Z",
+  "first_seen": "2026-11-12T14:20:03.000Z",
+  "status": "active",
+  "countries": [],
+  "tags": ["explotada"],
+  "extra": { "cve": "CVE-2026-12345", "epss": { "score": 0.91, "percentile": 0.99 } }
+}` },
+];
+---
+<Base title="API" description="API pública y gratuita de Network Alert: alertas, estado de plataformas y fuentes en JSON, RSS y JSON Feed. Sin llave.">
+  <Portadilla eyebrow="Datos abiertos" titulo="Una API <em>sin llave</em>" lead="Los datos del panel en JSON. Sin registro." ilustracion="api">
+    <a class="btn btn--primary" href="#consola">Probarla</a>
+    <a class="enlace-flecha" href="/openapi.json">OpenAPI 3.1</a>
+  </Portadilla>
+
+  <section class="banda tono-noche" id="consola" aria-labelledby="consola-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="consola-titulo" class="display display--600">Pruébala <em>en vivo</em></h2><p class="lead">Peticiones reales desde tu navegador.</p></header>
+    <div class="consola rev">
+      <div class="filtros" role="group" aria-label="Peticiones de ejemplo">
+        {pruebas.map(([ruta, t], i) => <button class="chip" type="button" data-ruta={ruta} aria-pressed={i === 0 ? 'true' : 'false'}>{t}</button>)}
+      </div>
+      <div class="ventana">
+        <div class="ventana__barra">
+          <span class="ventana__luces" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="ventana__titulo mono" id="consola-ruta">GET /api/v1/status</span>
+          <span class="consola__estado" id="consola-estado" role="status" aria-live="polite"></span>
+          <button class="ventana__copiar" type="button" data-copiar="#consola-curl">Copiar curl</button>
+        </div>
+        <pre class="ventana__codigo ventana__codigo--alto" tabindex="0" aria-label="Respuesta"><code id="consola-salida">Elige una petición para ver la respuesta.</code></pre>
+        <code id="consola-curl" hidden>curl "https://networkalert.dev/api/v1/status"</code>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="banda" aria-labelledby="rutas-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda rev"><h2 id="rutas-titulo" class="display display--600">Las <em>rutas</em></h2></header>
+    <ul class="rutas">
+      {rutas.map(([m, r, d]) => <li class="ruta rev"><span class="ruta__metodo">{m}</span><a class="ruta__ruta mono" href={r}>{r}</a><p>{d}</p></li>)}
+    </ul>
+  </div></section>
+
+  <section class="banda tono-noche" aria-labelledby="filtros-titulo"><div class="container fila fila--arriba">
+    <div class="stack rev">
+      <h2 id="filtros-titulo" class="display display--600">Filtros de <em>/alerts</em></h2>
+      <p class="lead">Se pueden combinar.</p>
+      <div class="ventana flota">
+        <div class="ventana__barra"><span class="ventana__luces" aria-hidden="true"><i></i><i></i><i></i></span><span class="ventana__titulo">Ejemplo combinado</span></div>
+        <pre class="ventana__codigo ventana__codigo--corto" tabindex="0"><code>GET /api/v1/alerts
+      ?category=vulnerability,platform
+      &min_severity=high
+      &q=wordpress
+      &limit=20</code></pre>
+      </div>
+    </div>
+    <dl class="parametros rev">
+      {params.map(([p, d]) => <div><dt class="mono">{p}</dt><dd>{d}</dd></div>)}
+    </dl>
+  </div></section>
+
+  <section class="banda" aria-labelledby="ejemplos-titulo"><div class="container fila">
+    <div class="stack rev">
+      <h2 id="ejemplos-titulo" class="display display--600">Ejemplos <em>listos</em></h2>
+      <p class="cluster"><a class="btn btn--primary" href="/feed.xml">RSS de alertas altas</a><a class="enlace-flecha" href="/feed.json">JSON Feed</a></p>
+    </div>
+    <div class="ventana rev" data-pestanas data-auto="no">
+      <div class="ventana__barra">
+        <span class="ventana__luces" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div class="ventana__tabs" role="tablist" aria-label="Ejemplos">
+          {ejemplos.map((e) => <button type="button" role="tab" id={`tab-${e.id}`} aria-controls={`panel-${e.id}`} aria-selected="false">{e.t}</button>)}
+        </div>
+      </div>
+      {ejemplos.map((e) => <pre class="ventana__codigo" role="tabpanel" id={`panel-${e.id}`} aria-labelledby={`tab-${e.id}`} tabindex="0" hidden><code>{e.c.split('\n').map((l, i) => <span class:list={['linea', /^\s*(#|\/\/)/.test(l) && 'c-c']} style={`--l:${i}`}>{l || ' '}{'\n'}</span>)}</code></pre>)}
+    </div>
+  </div></section>
+
+  <section class="banda tono-noche" aria-labelledby="conv-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="conv-titulo" class="display display--600">Convenciones</h2></header>
+    <ul class="rasgos rasgos--3">
+      {convenciones.map(([t, p]) => <li class="rasgo rev"><h3>{t}</h3><p>{p}</p></li>)}
+    </ul>
+  </div></section>
+
+  <section class="banda tono-acento" aria-labelledby="lic-titulo"><div class="container--narrow stack center">
+    <h2 id="lic-titulo" class="display display--600 rev">Licencia</h2>
+    <p class="lead rev">CC BY 4.0: úsala y cítala. Algunas fuentes no permiten uso comercial. Sin garantía de disponibilidad.</p>
+    <p class="rev"><a class="btn btn--claro" href="/fuentes">Ver fuentes y licencias</a></p>
+  </div></section>
+</Base>
+
+<script>
+  // Consola en vivo: hace la petición real (solo rutas propias de la lista) y muestra la respuesta con formato.
+  const salida = document.getElementById('consola-salida'), estado = document.getElementById('consola-estado'), ruta = document.getElementById('consola-ruta'), curl = document.getElementById('consola-curl');
+  const chips = [...document.querySelectorAll<HTMLButtonElement>('.consola [data-ruta]')];
+  if (salida && estado && ruta && curl && chips.length) {
+    let turno = 0;
+    const pide = async (b: HTMLButtonElement) => {
+      const r = b.dataset.ruta!, mio = ++turno;
+      chips.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      ruta.textContent = `GET ${r}`; curl.textContent = `curl "https://networkalert.dev${r}"`;
+      estado.textContent = 'pidiendo…'; estado.dataset.ok = '';
+      const t0 = performance.now();
+      try {
+        const res = await fetch(r, { headers: { accept: 'application/json' } });
+        const texto = await res.text();
+        if (mio !== turno) return;
+        let bonito = texto;
+        try { bonito = JSON.stringify(JSON.parse(texto), null, 2); } catch {}
+        const lineas = bonito.split('\n');
+        salida.textContent = lineas.slice(0, 80).join('\n') + (lineas.length > 80 ? `\n… (${lineas.length - 80} líneas más; ábrela completa en ${r})` : '');
+        estado.textContent = `${res.status} · ${Math.round(performance.now() - t0)} ms · ${(texto.length / 1024).toFixed(1)} KB`;
+        estado.dataset.ok = res.ok ? 'si' : 'no';
+        salida.classList.remove('entra'); void salida.offsetWidth; salida.classList.add('entra');
+      } catch {
+        if (mio !== turno) return;
+        salida.textContent = 'No se pudo hacer la petición. Revisa tu conexión e intenta de nuevo.';
+        estado.textContent = 'sin respuesta'; estado.dataset.ok = 'no';
+      }
+    };
+    chips.forEach((b) => b.addEventListener('click', () => void pide(b)));
+    // La primera petición sale sola cuando la consola entra en pantalla.
+    const io = new IntersectionObserver((e) => { if (e[0].isIntersecting) { io.disconnect(); void pide(chips[0]); } }, { threshold: 0.3 });
+    io.observe(salida);
+  }
+</script>

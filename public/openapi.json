@@ -1,0 +1,778 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Network Alert API",
+  "version": "1.0.0",
+  "description": "Alertas públicas de riesgos de Internet para quien mantiene sitios y apps. Compila fuentes abiertas (CISA KEV, GitHub Advisory Database, IODA, páginas de estado, CERT/CC, Node.js, SANS ISC, EPSS) cada 10 minutos. Cada alerta enlaza a su fuente primaria. Lo que no está en /api/v1/sources, no lo tenemos. Sin llave; CORS abierto; caché de 60 s; 120 peticiones por minuto por IP.",
+  "contact": {
+   "name": "Network Alert",
+   "url": "https://networkalert.dev",
+   "email": "contacto@networkalert.dev"
+  },
+  "license": {
+   "name": "CC BY 4.0 (compilación); cada alerta conserva la licencia de su fuente",
+   "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "termsOfService": "https://networkalert.dev/fuentes"
+ },
+ "externalDocs": {
+  "description": "Metodología: criterios de severidad y fórmula del nivel",
+  "url": "https://networkalert.dev/metodologia"
+ },
+ "servers": [
+  {
+   "url": "https://networkalert.dev",
+   "description": "Producción"
+  }
+ ],
+ "tags": [
+  {
+   "name": "alertas",
+   "description": "Alertas normalizadas. Fuentes: CISA KEV, GitHub Advisory Database, IODA, páginas de estado oficiales, CERT/CC, Node.js."
+  },
+  {
+   "name": "sistema",
+   "description": "Estado del servicio y catálogo de fuentes."
+  },
+  {
+   "name": "feeds",
+   "description": "Sindicación de alertas altas y críticas."
+  }
+ ],
+ "paths": {
+  "/api/v1/status": {
+   "get": {
+    "tags": [
+     "alertas"
+    ],
+    "operationId": "status",
+    "summary": "Nivel del día y conteos",
+    "description": "Nivel global (normal, elevated, high) con los factores exactos del cálculo. Se recalcula con cada corrida del recolector, cada 10 minutos.",
+    "responses": {
+     "200": {
+      "description": "Nivel y conteos.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "source": {
+           "type": "string"
+          },
+          "source_url": {
+           "type": "string",
+           "format": "uri"
+          },
+          "license": {
+           "type": "string"
+          },
+          "generated_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "age_s": {
+           "type": "integer"
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "status": {
+           "$ref": "#/components/schemas/Nivel"
+          },
+          "counts": {
+           "type": "object"
+          },
+          "context": {
+           "type": "object",
+           "properties": {
+            "infocon": {
+             "type": [
+              "string",
+              "null"
+             ],
+             "description": "Semáforo de SANS ISC: green, yellow, orange, red."
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "$ref": "#/components/responses/SinDatos"
+     }
+    }
+   }
+  },
+  "/api/v1/alerts": {
+   "get": {
+    "tags": [
+     "alertas"
+    ],
+    "operationId": "alerts",
+    "summary": "Alertas activas con filtros",
+    "description": "Alertas ordenadas por severidad y luego por fecha. Los filtros se combinan con Y; los que admiten lista, con O dentro de la lista.",
+    "parameters": [
+     {
+      "name": "category",
+      "in": "query",
+      "required": false,
+      "description": "Una o varias categorías separadas por coma.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "severity",
+      "in": "query",
+      "required": false,
+      "description": "Una o varias severidades separadas por coma.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "min_severity",
+      "in": "query",
+      "required": false,
+      "description": "Esa severidad y las superiores.",
+      "schema": {
+       "type": "string",
+       "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info"
+       ]
+      }
+     },
+     {
+      "name": "source",
+      "in": "query",
+      "required": false,
+      "description": "Identificador de fuente, p. ej. cisa-kev.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "country",
+      "in": "query",
+      "required": false,
+      "description": "ISO 3166-1 alfa-2, p. ej. MX.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "tag",
+      "in": "query",
+      "required": false,
+      "description": "Etiqueta exacta, p. ej. npm.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "description": "Texto libre sobre título, resumen, etiquetas y paquetes.",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "description": "Solo alertas con first_seen posterior.",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "description": "1 a 500.",
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 500,
+       "default": 100
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Alertas.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "source": {
+           "type": "string"
+          },
+          "source_url": {
+           "type": "string",
+           "format": "uri"
+          },
+          "license": {
+           "type": "string"
+          },
+          "generated_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "age_s": {
+           "type": "integer"
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "total": {
+           "type": "integer"
+          },
+          "returned": {
+           "type": "integer"
+          },
+          "alerts": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Alerta"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "$ref": "#/components/responses/Invalido"
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "$ref": "#/components/responses/SinDatos"
+     }
+    }
+   }
+  },
+  "/api/v1/platforms": {
+   "get": {
+    "tags": [
+     "alertas"
+    ],
+    "operationId": "platforms",
+    "summary": "Estado de plataformas",
+    "description": "Estado oficial que cada proveedor publica en su página de estado. Si el proveedor no ha reconocido un incidente, aquí tampoco aparece.",
+    "responses": {
+     "200": {
+      "description": "Plataformas.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "source": {
+           "type": "string"
+          },
+          "source_url": {
+           "type": "string",
+           "format": "uri"
+          },
+          "license": {
+           "type": "string"
+          },
+          "generated_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "age_s": {
+           "type": "integer"
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "platforms": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Plataforma"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "$ref": "#/components/responses/SinDatos"
+     }
+    }
+   }
+  },
+  "/api/v1/sources": {
+   "get": {
+    "tags": [
+     "sistema"
+    ],
+    "operationId": "sources",
+    "summary": "Catálogo de fuentes y su última lectura",
+    "description": "Cada fuente con licencia, hora de la última lectura, si respondió y el error si falló. ok=null indica fuente opcional omitida.",
+    "responses": {
+     "200": {
+      "description": "Fuentes.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "source": {
+           "type": "string"
+          },
+          "source_url": {
+           "type": "string",
+           "format": "uri"
+          },
+          "license": {
+           "type": "string"
+          },
+          "generated_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "age_s": {
+           "type": "integer"
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "sources": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Fuente"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "$ref": "#/components/responses/SinDatos"
+     }
+    }
+   }
+  },
+  "/api/v1/snapshot.json": {
+   "get": {
+    "tags": [
+     "alertas"
+    ],
+    "operationId": "snapshot",
+    "summary": "Instantánea completa",
+    "description": "Todo en una respuesta: nivel, conteos, plataformas, países, alertas y fuentes.",
+    "responses": {
+     "200": {
+      "description": "Instantánea v1.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "$ref": "#/components/responses/SinDatos"
+     }
+    }
+   }
+  },
+  "/feed.xml": {
+   "get": {
+    "tags": [
+     "feeds"
+    ],
+    "operationId": "feed_rss",
+    "summary": "RSS 2.0 de alertas altas y críticas",
+    "responses": {
+     "200": {
+      "description": "RSS.",
+      "content": {
+       "application/rss+xml": {}
+      }
+     }
+    }
+   }
+  },
+  "/feed.json": {
+   "get": {
+    "tags": [
+     "feeds"
+    ],
+    "operationId": "feed_json",
+    "summary": "JSON Feed 1.1 de alertas altas y críticas",
+    "responses": {
+     "200": {
+      "description": "JSON Feed.",
+      "content": {
+       "application/feed+json": {}
+      }
+     }
+    }
+   }
+  },
+  "/badge.svg": {
+   "get": {
+    "tags": [
+     "sistema"
+    ],
+    "operationId": "badge",
+    "summary": "Insignia SVG con el nivel actual",
+    "responses": {
+     "200": {
+      "description": "SVG.",
+      "content": {
+       "image/svg+xml": {}
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "tags": [
+     "sistema"
+    ],
+    "operationId": "health",
+    "summary": "Estado del servicio",
+    "description": "status: ok, atrasado (dato con más de una hora) o sin_datos.",
+    "responses": {
+     "200": {
+      "description": "En servicio.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "status": {
+           "type": "string",
+           "enum": [
+            "ok",
+            "atrasado",
+            "sin_datos"
+           ]
+          },
+          "version": {
+           "type": "string"
+          },
+          "hora_utc": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "generated_at": {
+           "type": [
+            "string",
+            "null"
+           ],
+           "format": "date-time"
+          },
+          "age_s": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Alerta": {
+    "type": "object",
+    "required": [
+     "id",
+     "source",
+     "category",
+     "severity",
+     "title",
+     "url",
+     "published",
+     "first_seen",
+     "status"
+    ],
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Estable entre corridas."
+     },
+     "source": {
+      "type": "string"
+     },
+     "category": {
+      "type": "string",
+      "enum": [
+       "vulnerability",
+       "platform",
+       "connectivity",
+       "advisory"
+      ]
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "critical",
+       "high",
+       "medium",
+       "low",
+       "info"
+      ]
+     },
+     "title": {
+      "type": "string"
+     },
+     "summary": {
+      "type": "string"
+     },
+     "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Fuente primaria."
+     },
+     "published": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha según la fuente."
+     },
+     "updated": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "first_seen": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Primera vez que Network Alert la vio."
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "active",
+       "resolved"
+      ]
+     },
+     "countries": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "tags": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "stale": {
+      "type": "boolean",
+      "description": "La fuente falló en la última lectura; es el último dato conocido."
+     },
+     "extra": {
+      "type": "object",
+      "description": "Campos propios de la fuente: cve, epss, cvss, packages, signals…"
+     }
+    }
+   },
+   "Plataforma": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "group": {
+      "type": "string"
+     },
+     "url": {
+      "type": "string",
+      "format": "uri"
+     },
+     "indicator": {
+      "type": "string",
+      "enum": [
+       "none",
+       "minor",
+       "major",
+       "critical",
+       "maintenance"
+      ]
+     },
+     "description": {
+      "type": "string"
+     },
+     "incidents": {
+      "type": "integer"
+     },
+     "stale": {
+      "type": "boolean"
+     }
+    }
+   },
+   "Fuente": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "url": {
+      "type": "string",
+      "format": "uri"
+     },
+     "license": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "alerts",
+       "platform",
+       "context",
+       "enrichment"
+      ]
+     },
+     "ok": {
+      "type": [
+       "boolean",
+       "null"
+      ]
+     },
+     "fetched_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "last_ok_at": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "date-time"
+     },
+     "items": {
+      "type": "integer"
+     },
+     "error": {
+      "type": "string"
+     }
+    }
+   },
+   "Nivel": {
+    "type": "object",
+    "properties": {
+     "level": {
+      "type": "string",
+      "enum": [
+       "normal",
+       "elevated",
+       "high"
+      ]
+     },
+     "points": {
+      "type": "integer"
+     },
+     "factors": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "integer"
+      }
+     }
+    }
+   },
+   "Error": {
+    "type": "object",
+    "properties": {
+     "detail": {}
+    }
+   }
+  },
+  "responses": {
+   "Limite": {
+    "description": "Límite de peticiones excedido.",
+    "headers": {
+     "Retry-After": {
+      "schema": {
+       "type": "integer"
+      }
+     }
+    },
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   },
+   "SinDatos": {
+    "description": "Todavía no hay instantánea publicada.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   },
+   "Invalido": {
+    "description": "Parámetro inválido: lista de {type, loc, msg, input}.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   }
+  }
+ }
+}

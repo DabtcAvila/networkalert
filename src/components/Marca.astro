@@ -1,0 +1,11 @@
+---
+// Marca: una línea de pulso que se dibuja sola y forma una N; termina en un punto ámbar que avisa.
+// La animación vive en global.css (.marca__*). El favicon (public/favicon.svg) es el mismo dibujo, quieto.
+const { class: cls } = Astro.props;
+---
+<svg class:list={['marca', cls]} viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
+  <rect width="64" height="64" rx="16" fill="#5b3df5" />
+  <path class="marca__linea" pathLength="100" d="M9 40h8l7-21 14 28 7-21h3" stroke="#fff" stroke-width="5.500" stroke-linecap="round" stroke-linejoin="round" />
+  <circle class="marca__eco" cx="50" cy="26" r="4" />
+  <circle class="marca__punta" cx="50" cy="26" r="4.600" fill="#ffb020" />
+</svg>

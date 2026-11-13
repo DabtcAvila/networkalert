@@ -1,0 +1,12 @@
+dist/
+.astro/
+node_modules/
+.datos/
+.env
+.env.*
+.dev.vars*
+.wrangler/
+.DS_Store
+# Lista privada de dominios vigilados y sus reportes: nunca al repo público.
+dominios.txt
+vigia/

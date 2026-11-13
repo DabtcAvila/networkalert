@@ -1,0 +1,20 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+// Registro de solo agregar: nunca se edita ni se borra una entrada anterior.
+const correcciones: { fecha: string; decia: string; dice: string; deteccion: string; remedio: string }[] = [];
+---
+<Base title="Correcciones" description="Registro público de errores propios de Network Alert y cómo se corrigieron.">
+  <Portadilla eyebrow="Transparencia" titulo="Correc<em>ciones</em>" lead="Nuestros errores quedan escritos aquí. No se editan ni se borran." ilustracion="correcciones">
+    <a class="btn btn--primary" href="mailto:contacto@networkalert.dev">Reportar un error</a>
+    <a class="enlace-flecha" href="/metodologia">Cómo se clasifica</a>
+  </Portadilla>
+  <section class="banda"><div class="container--narrow stack">
+    {correcciones.length === 0
+      ? <div class="vacio-grande rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a9 9 0 100-18 9 9 0 000 18zM8 12l3 3 5-6" /></svg><h2>Sin correcciones hasta ahora</h2><p>Cuando haya una, aparecerá con fecha y detalle.</p></div>
+      : <ul class="alertas">{correcciones.map((c) => <li class="alerta"><p class="alerta__cab"><time datetime={c.fecha}>{c.fecha}</time></p><p><strong>Decía:</strong> {c.decia}</p><p><strong>Dice:</strong> {c.dice}</p><p class="meta">Detección: {c.deteccion} · Remedio: {c.remedio}</p></li>)}</ul>}
+    <div class="prose">
+      <p>¿Viste un error? Escribe a <a href="mailto:contacto@networkalert.dev">contacto@networkalert.dev</a> con el identificador de la alerta.</p>
+    </div>
+  </div></section>
+</Base>

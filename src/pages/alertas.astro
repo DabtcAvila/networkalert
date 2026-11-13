@@ -1,0 +1,35 @@
+---
+import Base from '../layouts/Base.astro';
+const filtros = [
+  { k: 'todo', t: 'Lo importante' },
+  { k: 'vulnerability', t: 'Vulnerabilidades' },
+  { k: 'platform', t: 'Plataformas' },
+  { k: 'connectivity', t: 'Conectividad' },
+  { k: 'advisory', t: 'Avisos' },
+  { k: 'mexico', t: 'México' },
+];
+---
+<Base title="Alertas" description="Todas las alertas activas de Network Alert: fallas en ataque, incidentes de plataformas y cortes de Internet, con buscador y filtros.">
+  <section class="banda banda--alertas" aria-labelledby="alertas-titulo">
+    <div class="container stack">
+      <header class="cabecera-banda">
+        <p class="eyebrow">En vivo</p>
+        <h1 id="alertas-titulo" class="display display--600">Alertas <em>activas</em></h1>
+        <p class="meta mono" id="actualizado">Leyendo…</p>
+      </header>
+      <p class="aviso aviso--error" id="aviso-error" hidden>No se pudieron leer las alertas. Revisa el <a href="/health">estado del servicio</a>.</p>
+      <p class="aviso" id="aviso-atraso" hidden>El dato tiene más de 45 minutos; es lo último conocido.</p>
+      <noscript><p class="aviso">Esta página necesita JavaScript. Los mismos datos están en <a href="/feed.xml">RSS</a> y en <a href="/api/v1/alerts">la API</a>.</p></noscript>
+      <div class="filtros filtros--pegajosos" role="group" aria-label="Filtrar alertas">
+        {filtros.map((f, i) => <button class="chip" type="button" data-filtro={f.k} aria-pressed={i === 0 ? 'true' : 'false'}>{f.t} <span class="chip__n" data-cuenta={f.k}></span></button>)}
+        <input class="buscador" id="buscar" type="search" placeholder="Busca lo que usas: next, wordpress, CVE-2026…" aria-label="Buscar en las alertas" autocomplete="off" spellcheck="false" />
+      </div>
+      <ul class="alertas" id="lista-alertas" aria-live="polite"></ul>
+      <p class="vacio" id="alertas-vacio" hidden></p>
+      <p class="center"><button class="btn btn--secondary" id="ver-mas" type="button" hidden>Ver más</button></p>
+      <p class="meta">Los títulos llegan en el idioma de su fuente. Cómo se ordenan: <a href="/metodologia">Metodología</a>.</p>
+    </div>
+  </section>
+</Base>
+
+<script src="../scripts/panel.ts"></script>

@@ -1,0 +1,48 @@
+---
+import Marca from './Marca.astro';
+import { SITE } from '../data/site';
+const year = new Date().getFullYear();
+---
+<footer class="site-footer tono-lona">
+  <div class="container site-footer__grid">
+    <div class="site-footer__brand">
+      <span class="brand"><Marca class="brand__sello" /><span class="brand__nombre">Network <em>Alert</em></span></span>
+      <p>Gratis y sin publicidad. Cada alerta enlaza a su fuente.</p>
+      <p><img src="/badge.svg" alt="Nivel actual de Network Alert" width="150" height="20" loading="lazy" /></p>
+    </div>
+    <nav aria-label="Sitio">
+      <p class="label">Sitio</p>
+      <ul>
+        <li><a href="/alertas">Alertas</a></li>
+        <li><a href="/#mundo">Mapa del mundo</a></li>
+        <li><a href="/#plataformas">Plataformas</a></li>
+        <li><a href="/guia">Qué vigilar</a></li>
+        <li><a href="/apoyar">Apoyar</a></li>
+      </ul>
+    </nav>
+    <nav aria-label="Datos">
+      <p class="label">Datos abiertos</p>
+      <ul>
+        <li><a href="/api">API y documentación</a></li>
+        <li><a href="/openapi.json">OpenAPI 3.1</a></li>
+        <li><a href="/feed.xml">RSS</a> · <a href="/feed.json">JSON Feed</a></li>
+        <li><a href="/llms.txt">llms.txt</a></li>
+        <li><a href="/health">Estado del servicio</a></li>
+      </ul>
+    </nav>
+    <nav aria-label="Transparencia">
+      <p class="label">Transparencia</p>
+      <ul>
+        <li><a href="/fuentes">Fuentes y licencias</a></li>
+        <li><a href="/metodologia">Metodología</a></li>
+        <li><a href="/correcciones">Correcciones</a></li>
+        <li><a href="/privacidad">Privacidad</a></li>
+        <li><a href="/.well-known/security.txt">security.txt</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="container site-footer__bottom">
+    <span>© {year} {SITE.name} · Compilación CC BY 4.0 · Código MIT</span>
+    <span>Sin garantía. Verifica en la fuente.</span>
+  </div>
+</footer>

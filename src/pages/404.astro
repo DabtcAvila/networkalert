@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+---
+<Base title="No encontrado" description="Esta página no existe." noindex>
+  <Portadilla eyebrow="Error 404" titulo="Aquí no hay <em>señal</em>" lead="La página que buscas no existe o cambió de lugar." ilustracion="perdido">
+    <a class="btn btn--primary" href="/">Ir al inicio</a>
+    <a class="enlace-flecha" href="/api">Documentación de la API</a>
+  </Portadilla>
+</Base>

@@ -1,0 +1,235 @@
+---
+import Base from '../layouts/Base.astro';
+import Portada from '../components/Portada.astro';
+import Mapa from '../components/Mapa.astro';
+import Ilustracion from '../components/Ilustracion.astro';
+import { SITE } from '../data/site';
+const filtros = [
+  { k: 'todo', t: 'Lo importante' },
+  { k: 'vulnerability', t: 'Vulnerabilidades' },
+  { k: 'platform', t: 'Plataformas' },
+  { k: 'connectivity', t: 'Conectividad' },
+  { k: 'advisory', t: 'Avisos' },
+  { k: 'mexico', t: 'México' },
+];
+// Seis de los catorce puntos de la guía, como entrada rápida.
+const vigilar = [
+  { t: 'Fallas ya explotadas', d: 'M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3zM12 8v5M12 16h.01' },
+  { t: 'Dependencias con fallos', d: 'M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9' },
+  { t: 'Certificado TLS', d: 'M6 11V8a6 6 0 0112 0v3M5 11h14v10H5zM12 15v2' },
+  { t: 'Vencimiento del dominio', d: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2' },
+  { t: 'Suplantación de correo', d: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+  { t: 'Caídas de proveedores', d: 'M7 18a4 4 0 01-.6-7.95A6 6 0 0118 9a4.5 4.5 0 01.5 9H7zM12 12v3M12 17h.01' },
+];
+const filas = [
+  { il: 'vuln', t: 'Fallas en ataque', p: 'Las pocas fallas que ya se usan en ataques reales, con la versión que las corrige.', cta: ['Ver fallas', '/alertas?f=vulnerability'] },
+  { il: 'servidores', t: '¿Tu sitio o tu proveedor?', p: 'El estado oficial de 25 plataformas: hosting, DNS, pagos y correo.', cta: ['Ver plataformas', '#plataformas'] },
+  { il: 'senal', t: 'Cortes por país', p: 'Si un país pierde conexión, tus visitantes de ahí no llegan. México siempre a la vista.', cta: ['Ver el globo', '#mundo'] },
+] as const;
+const perfiles = [
+  { id: 'dev', t: 'Si desarrollas', h: 'Entérate antes que tu cliente', p: 'Busca lo que usas y sabrás en un minuto si te toca.', puntos: ['Buscador por paquete o CVE', 'API sin llave y RSS', 'Insignia para tu README'], cta: ['Ver la API', '/api'] },
+  { id: 'agencia', t: 'Si llevas varios sitios', h: 'Un solo lugar que revisar', p: 'El nivel del día te dice si hay que actuar.', puntos: ['El nivel en una palabra', '25 proveedores en una pantalla', 'Catorce puntos para dejar en automático'], cta: ['Abrir la guía', '/guia'] },
+  { id: 'negocio', t: 'Si tienes un negocio en línea', h: 'Saber si es grave', p: 'Si tu página no carga, aquí ves si es tu proveedor o Internet.', puntos: ['Sin tecnicismos', 'México siempre visible', 'Fuente oficial a un clic'], cta: ['Ver qué vigilar', '/guia'] },
+];
+const recursos = [
+  { t: 'Guía', h: 'Catorce cosas que vigilar', href: '/guia', d: 'M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2' },
+  { t: 'Metodología', h: 'Calcula el nivel del día', href: '/metodologia#nivel', d: 'M4 18a8 8 0 0116 0M12 18l4-6M12 4v2M4.900 7.900l1.400 1.400M19.100 7.900l-1.400 1.400' },
+  { t: 'API', h: 'Pruébala en vivo', href: '/api#consola', d: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14' },
+  { t: 'Fuentes', h: 'De dónde sale cada dato', href: '/fuentes', d: 'M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17.500l9 5 9-5' },
+  { t: 'Correcciones', h: 'Nuestros errores, a la vista', href: '/correcciones', d: 'M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4' },
+  { t: 'Apoyar', h: 'Mantenlo gratis para todos', href: '/apoyar', d: 'M12 20s-7-4.400-7-10a4 4 0 017-2.600A4 4 0 0119 10c0 5.600-7 10-7 10z' },
+];
+const codigo = [
+  { id: 'curl', t: 'curl', lineas: [['c', '# ¿Hay algo alto o crítico que mencione Next.js?'], ['', 'curl "https://networkalert.dev/api/v1/alerts?q=next&min_severity=high"'], ['', ''], ['c', '# Solo el nivel del día'], ['', 'curl -s https://networkalert.dev/api/v1/status | jq .status.level'], ['s', '"elevated"']] },
+  { id: 'js', t: 'JavaScript', lineas: [['c', '// Sin llave ni registro; CORS abierto'], ['', 'const r = await fetch("https://networkalert.dev/api/v1/alerts?country=MX");'], ['', 'const { alerts } = await r.json();'], ['', ''], ['', 'for (const a of alerts) {'], ['', '  console.log(a.severity, a.title, a.url);'], ['', '}']] },
+  { id: 'ci', t: 'CI', lineas: [['c', '# GitHub Actions: detener el despliegue si el nivel es alto'], ['', '- name: Revisar Network Alert'], ['', '  run: |'], ['', '    nivel=$(curl -s https://networkalert.dev/api/v1/status | jq -r .status.level)'], ['', '    test "$nivel" != "high"']] },
+];
+---
+<Base title={`${SITE.name} · ${SITE.lema}`} rawTitle description={SITE.descripcion}>
+  <Portada eyebrow="Gratis · se actualiza cada 10 minutos" lead="Fallas en ataque, proveedores caídos y cortes de Internet. Sin registro y con la fuente a un clic.">
+    <a class="btn btn--primary" href="/alertas">Ver las alertas</a>
+    <a class="btn btn--secondary" href="/guia">¿Qué debo vigilar?</a>
+  </Portada>
+
+  <section class="banda banda--hoy" id="alertas" aria-labelledby="hoy-titulo">
+    <div class="container hoy">
+      <div class="hoy__cab">
+        <h2 id="hoy-titulo" class="display display--500">Hoy</h2>
+        <p class="meta mono" id="actualizado">Leyendo…</p>
+        <a class="btn btn--primary btn--small hoy__todas" id="ver-todas" href="/alertas">Ver todas</a>
+      </div>
+      <p class="aviso aviso--error" id="aviso-error" hidden>No se pudieron leer las alertas. Revisa el <a href="/health">estado del servicio</a>.</p>
+      <p class="aviso" id="aviso-atraso" hidden>El dato tiene más de 45 minutos; es lo último conocido.</p>
+      <ul class="hoy__lista" id="lista-hoy" aria-live="polite"></ul>
+      <div class="hoy__pie">
+        <form class="hoy__buscar" action="/alertas" method="get" role="search">
+          <input class="buscador" type="search" name="q" placeholder="Busca lo que usas: next, wordpress…" aria-label="Buscar en las alertas" autocomplete="off" spellcheck="false" />
+          <button class="btn btn--secondary btn--small" type="submit">Buscar</button>
+        </form>
+        <nav class="hoy__filtros" aria-label="Alertas por tipo">
+          {filtros.slice(1).map((f) => <a class="chip" href={`/alertas?f=${f.k}`}>{f.t} <span class="chip__n" data-cuenta={f.k}></span></a>)}
+        </nav>
+      </div>
+    </div>
+  </section>
+
+  <section class="banda banda--intro" aria-labelledby="intro-titulo">
+    <div class="container stack--lg stack">
+      <header class="cabecera-banda cabecera-banda--centro cabecera-banda--ancha rev">
+        <h2 id="intro-titulo" class="display display--600">Tres cosas tumban un sitio. Aquí las ves <em>juntas</em>.</h2>
+      </header>
+      {filas.map((f, i) => (
+        <div class:list={['fila fila--rasgo', i % 2 === 1 && 'fila--inversa']}>
+          <div class="stack rev">
+            <h3 class="display display--500">{f.t}</h3>
+            <p class="ink-2">{f.p}</p>
+            <p><a class="btn btn--primary" href={f.cta[1]}>{f.cta[0]}</a></p>
+          </div>
+          <div class="fila__arte rev"><Ilustracion tipo={f.il} /></div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="banda banda--globo" id="mundo" aria-labelledby="mundo-titulo">
+    <div class="container">
+      <header class="cabecera-banda cabecera-banda--centro rev">
+        <h2 id="mundo-titulo" class="display display--600">Internet, <em>ahora mismo</em></h2>
+        <p class="lead">Cortes por país en las últimas 24 horas.</p>
+      </header>
+      <div class="cifras">
+        <a class="cifra rev" href="/alertas"><span class="cifra__n" id="c-altas">–</span><span class="cifra__t">alertas altas y críticas</span></a>
+        <a class="cifra rev" href="/alertas?f=vulnerability"><span class="cifra__n" id="c-vuln">–</span><span class="cifra__t">fallas en ataque (30 días)</span></a>
+        <a class="cifra rev" href="#plataformas"><span class="cifra__n" id="c-plat">–</span><span class="cifra__t">plataformas con incidente</span></a>
+        <a class="cifra rev" href="#lista-paises"><span class="cifra__n" id="c-paises">–</span><span class="cifra__t">países con cortes</span></a>
+      </div>
+      <Mapa />
+      <div class="grid-2 globo__pie">
+        <div class="stack--sm stack rev">
+          <p class="label">Países con cortes</p>
+          <ul class="paises" id="lista-paises"></ul>
+          <p class="meta" id="paises-nota"></p>
+        </div>
+        <div class="card stack--sm stack rev">
+          <p class="eyebrow">México</p>
+          <p class="display display--500" id="mx-estado">Consultando…</p>
+          <p class="meta">Solo cortes a nivel país; las fallas locales de un proveedor no aparecen. Compara con <a href="https://radar.cloudflare.com/mx" target="_blank" rel="noopener noreferrer">Cloudflare Radar</a> o <a href="https://ioda.inetintel.cc.gatech.edu/country/MX" target="_blank" rel="noopener noreferrer">IODA</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="banda" id="plataformas" aria-labelledby="plataformas-titulo">
+    <div class="container stack">
+      <header class="cabecera-banda cabecera-banda--centro rev">
+        <h2 id="plataformas-titulo" class="display display--600">¿Es mi sitio o es <em>la plataforma</em>?</h2>
+        <p class="lead">Estado oficial. Lo que falla sube primero.</p>
+      </header>
+    </div>
+    <div class="marquesina" aria-hidden="true"><div class="marquesina__pista" id="marquesina"></div></div>
+    <div class="container stack">
+      <ul class="plataformas" id="lista-plataformas"></ul>
+      <p class="meta center">¿Falta una? Escribe a <a href={`mailto:${SITE.contacto}`}>{SITE.contacto}</a>.</p>
+    </div>
+  </section>
+
+  <section class="banda tono-noche" aria-labelledby="perfiles-titulo">
+    <div class="container stack--lg stack">
+      <header class="cabecera-banda cabecera-banda--centro rev">
+        <h2 id="perfiles-titulo" class="display display--600">Para quien mantiene <em>sitios</em></h2>
+      </header>
+      <div class="perfiles rev" data-pestanas>
+        <div class="perfiles__tabs" role="tablist" aria-label="Para quién es">
+          {perfiles.map((x) => <button type="button" role="tab" id={`tab-${x.id}`} aria-controls={`panel-${x.id}`} aria-selected="false">{x.t}</button>)}
+        </div>
+        {perfiles.map((x) => (
+          <div class="perfiles__panel" role="tabpanel" id={`panel-${x.id}`} aria-labelledby={`tab-${x.id}`} tabindex="0" hidden>
+            <div class="stack">
+              <h3 class="display display--500">{x.h}</h3>
+              <p class="ink-2">{x.p}</p>
+              <p><a class="btn btn--primary" href={x.cta[1]}>{x.cta[0]}</a></p>
+            </div>
+            <ul class="palomitas">{x.puntos.map((t, i) => <li style={`--l:${i}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7" /></svg>{t}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="banda tono-acento" aria-labelledby="vigilar-titulo">
+    <div class="container stack--lg stack">
+      <header class="cabecera-banda cabecera-banda--centro rev">
+        <h2 id="vigilar-titulo" class="display display--600">Qué vigilar</h2>
+        <p class="lead">Catorce cosas que tumban sitios y cómo revisarlas en minutos.</p>
+      </header>
+      <ul class="ayudas">
+        {vigilar.map((v) => <li class="rev"><a class="ayuda" href="/guia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={v.d} /></svg><strong>{v.t}</strong></a></li>)}
+      </ul>
+      <p class="center"><a class="btn btn--claro" href="/guia">Abrir la guía</a></p>
+    </div>
+  </section>
+
+  <section class="banda" aria-labelledby="recursos-titulo">
+    <div class="container stack" data-carrusel>
+      <div class="carrusel__cab rev">
+        <h2 id="recursos-titulo" class="display display--600">Recursos</h2>
+        <p class="carrusel__flechas"><button type="button" data-mover="-1" aria-label="Anteriores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></button><button type="button" data-mover="1" aria-label="Siguientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></button></p>
+      </div>
+      <ul class="carrusel" tabindex="0" aria-label="Recursos del sitio">
+        {recursos.map((r, i) => (
+          <li class="rev"><a class="recurso" href={r.href}>
+            <span class="recurso__arte" style={`--g:${i}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.400" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={r.d} /></svg></span>
+            <span class="recurso__txt"><span class="label">{r.t}</span><strong>{r.h}</strong><span class="enlace-flecha">Abrir</span></span>
+          </a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="banda" aria-labelledby="api-titulo">
+    <div class="container fila">
+      <div class="stack rev">
+        <h2 id="api-titulo" class="display display--500">Los mismos datos en tu terminal</h2>
+        <p class="ink-2">API en JSON, sin llave. También RSS e insignia para tu README.</p>
+        <p class="cluster"><a class="btn btn--primary" href="/api">Ver la API</a><a class="enlace-flecha" href="/feed.xml">RSS</a></p>
+      </div>
+      <div class="ventana flota rev" data-pestanas>
+        <div class="ventana__barra">
+          <span class="ventana__luces" aria-hidden="true"><i></i><i></i><i></i></span>
+          <div class="ventana__tabs" role="tablist" aria-label="Ejemplos de uso de la API">
+            {codigo.map((c) => <button type="button" role="tab" id={`tab-${c.id}`} aria-controls={`panel-${c.id}`} aria-selected="false">{c.t}</button>)}
+          </div>
+        </div>
+        {codigo.map((c) => <pre class="ventana__codigo" role="tabpanel" id={`panel-${c.id}`} aria-labelledby={`tab-${c.id}`} tabindex="0" hidden><code>{c.lineas.map(([k, l], i) => <span class:list={['linea', k && `c-${k}`]} style={`--l:${i}`}>{l || ' '}{'\n'}</span>)}</code></pre>)}
+      </div>
+    </div>
+  </section>
+
+  <section class="banda tono-acento tono-acento--cierre" aria-labelledby="cierre-titulo">
+    <div class="container stack--lg stack">
+      <h2 id="cierre-titulo" class="display display--600 center rev">Gratis, siempre</h2>
+      <div class="cierre">
+        <div class="cierre__col rev">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.600-7 10-7 10z" /></svg>
+          <h3>Apoya el proyecto</h3>
+          <p>Sin anuncios ni venta de datos. Tu donación lo mantiene.</p>
+          <a class="enlace-flecha" href="/apoyar">Donar</a>
+        </div>
+        <div class="cierre__col rev">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19a1 1 0 100-2 1 1 0 000 2zM4 11a9 9 0 019 9M4 4a16 16 0 0116 16" /></svg>
+          <h3>Recibe lo urgente</h3>
+          <p>Alertas altas y críticas por RSS.</p>
+          <a class="enlace-flecha" href="/feed.xml">Suscribirme</a>
+        </div>
+        <div class="cierre__col rev">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.500 10.900c.5.400.8 1 .8 1.600h5.400c0-.6.300-1.200.8-1.600A6 6 0 0012 3z" /></svg>
+          <h3>Propón una fuente</h3>
+          <p>¿Falta algo o viste un error? Escríbenos.</p>
+          <a class="enlace-flecha" href={`mailto:${SITE.contacto}`}>Escribir</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script src="../scripts/panel.ts"></script>

@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+message: "Si usas estos datos, cita Network Alert y la fuente primaria de cada alerta."
+title: "Network Alert"
+type: dataset
+url: "https://networkalert.dev"
+license: CC-BY-4.0
+date-released: 2026-11-13

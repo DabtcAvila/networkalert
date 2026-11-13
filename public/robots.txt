@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/ingest
+
+Sitemap: https://networkalert.dev/sitemap-index.xml

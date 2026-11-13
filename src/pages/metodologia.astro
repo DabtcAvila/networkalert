@@ -1,0 +1,172 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+
+const principios = [
+  { t: 'Nada sin fuente', p: 'Sin enlace a la fuente, no se publica.', d: 'M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1' },
+  { t: 'No se afirma de más', p: '«Señales de corte» no es «país sin Internet».', d: 'M12 3v18M5 7h14M5 7l-3 7a4 4 0 006 0L5 7zM19 7l-3 7a4 4 0 006 0l-3-7z' },
+  { t: 'Las fallas se muestran', p: 'Si una fuente no responde, se dice.', d: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 8v5M12 16h.01' },
+  { t: 'No se reescribe en silencio', p: 'Los errores propios quedan en Correcciones.', d: 'M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4' },
+];
+const entra = [
+  { id: 'vuln', t: 'Vulnerabilidades', items: [
+    ['CISA KEV', 'Fallas en ataque de los últimos 30 días. Alta; crítica si se usa en ransomware.'],
+    ['GitHub', 'Avisos críticos de 7 días y altos de 3.'],
+    ['EPSS', 'Probabilidad de ataque en 30 días. Solo orienta.'],
+  ] },
+  { id: 'plat', t: 'Plataformas', items: [
+    ['Incidentes abiertos', 'Según la página de estado oficial.'],
+    ['Severidad', 'La que declara el proveedor.'],
+  ] },
+  { id: 'conec', t: 'Conectividad', items: [
+    ['Alta', 'Dos señales críticas y caída de 25 % o más.'],
+    ['Media', 'Dos señales críticas, o caída de 25 %.'],
+    ['Baja', 'Caída de 8 % a 25 %.'],
+    ['Informativa', 'Variaciones menores; suelen ser ruido.'],
+  ] },
+  { id: 'avisos', t: 'Avisos', items: [
+    ['CERT/CC y Node.js', 'Boletines de los últimos 21 días. Severidad media.'],
+  ] },
+];
+const factores = [
+  { k: 'platforms_critical', t: 'Plataformas caídas', peso: 3, max: 6, tope: null },
+  { k: 'platforms_major', t: 'Plataformas con incidente mayor', peso: 2, max: 6, tope: null },
+  { k: 'kev_72h', t: 'Fallas en ataque nuevas (72 h)', peso: 1, max: 8, tope: 4 },
+  { k: 'critical_advisories_72h', t: 'Avisos críticos de GitHub (72 h)', peso: 1, max: 8, tope: 3 },
+  { k: 'country_outages_high', t: 'Países con corte alto', peso: 1, max: 8, tope: 3 },
+];
+const flujo = [
+  ['La fuente publica', 'CISA, GitHub, IODA…'],
+  ['El recolector lee', 'Cada diez minutos.'],
+  ['La API lo sirve', 'Con caché de un minuto.'],
+  ['Lo ves aquí', 'Unos quince minutos después.'],
+];
+const noVe = [
+  'Fallas locales de tu proveedor de Internet.',
+  'Fallas sin aviso público.',
+  'Incidentes que el proveedor no ha reconocido.',
+  'Tus propios dominios y certificados.',
+];
+---
+<Base title="Metodología" description="Cómo decide Network Alert qué mostrar, cómo asigna severidad y cómo calcula el nivel del día.">
+  <Portadilla eyebrow="Transparencia" titulo="Cómo se decide <em>qué mostrar</em>" lead="Qué entra, cómo se ordena y qué significa el nivel del día." ilustracion="metodologia">
+    <a class="btn btn--primary" href="#nivel">Calcular el nivel</a>
+    <a class="enlace-flecha" href="/fuentes">Ver las fuentes</a>
+  </Portadilla>
+
+  <section class="banda tono-noche" aria-labelledby="principios-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="principios-titulo" class="display display--600">Cuatro <em>principios</em></h2></header>
+    <ul class="rasgos">
+      {principios.map((x) => <li class="rasgo rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={x.d} /></svg><h3>{x.t}</h3><p>{x.p}</p></li>)}
+    </ul>
+  </div></section>
+
+  <section class="banda" aria-labelledby="entra-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="entra-titulo" class="display display--600">Qué <em>entra</em></h2></header>
+    <div class="fichas rev" data-pestanas data-auto="no">
+      <div class="fichas__tabs" role="tablist" aria-label="Tipos de alerta">
+        {entra.map((e) => <button type="button" role="tab" id={`tab-${e.id}`} aria-controls={`panel-${e.id}`} aria-selected="false">{e.t}</button>)}
+      </div>
+      {entra.map((e) => (
+        <div class="fichas__panel" role="tabpanel" id={`panel-${e.id}`} aria-labelledby={`tab-${e.id}`} tabindex="0" hidden>
+          <dl class="reglas">{e.items.map(([dt, dd], i) => <div class="regla" style={`--l:${i}`}><dt>{dt}</dt><dd>{dd}</dd></div>)}</dl>
+        </div>
+      ))}
+    </div>
+  </div></section>
+
+  <section class="banda tono-acento" id="nivel" aria-labelledby="nivel-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="nivel-titulo" class="display display--600">El nivel del día</h2><p class="lead">Mueve los factores y mira cómo cambia.</p></header>
+    <div class="calc rev" id="calc" data-nivel="normal">
+      <div class="calc__factores">
+        {factores.map((f) => (
+          <div class="factor">
+            <label for={`f-${f.k}`}>{f.t}<small>{f.peso} {f.peso === 1 ? 'punto' : 'puntos'} c/u{f.tope ? ` · máx. ${f.tope}` : ''}</small></label>
+            <div class="factor__ctl">
+              <input id={`f-${f.k}`} type="range" min="0" max={f.max} step="1" value="0" data-factor={f.k} data-peso={f.peso} data-tope={f.tope ?? ''} />
+              <output for={`f-${f.k}`}>0</output>
+            </div>
+          </div>
+        ))}
+        <p class="calc__acciones"><button class="btn btn--secondary btn--small" type="button" id="calc-hoy" disabled>Valores de hoy</button><button class="btn btn--secondary btn--small" type="button" id="calc-cero">En cero</button></p>
+      </div>
+      <div class="calc__resultado" role="status" aria-live="polite">
+        <svg class="medidor" viewBox="0 0 240 150" aria-hidden="true">
+          <path class="medidor__riel" d="M24 130a96 96 0 0 1 192 0" pathLength="100" />
+          <path class="medidor__arco" id="calc-arco" d="M24 130a96 96 0 0 1 192 0" pathLength="100" />
+          <g class="medidor__aguja" id="calc-aguja"><path d="M120 130L120 52" /></g>
+          <circle cx="120" cy="130" r="9" />
+        </svg>
+        <p class="calc__puntos"><strong id="calc-puntos">0</strong> puntos</p>
+        <p class="calc__nivel" id="calc-nivel">Normal</p>
+        <p class="calc__nota" id="calc-nota">0 a 3 puntos.</p>
+      </div>
+    </div>
+    <p class="center meta">El nivel es general: no sabe qué usas tú. Para eso está el buscador.</p>
+  </div></section>
+
+  <section class="banda" aria-labelledby="flujo-titulo"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="flujo-titulo" class="display display--600">Del origen a <em>tu pantalla</em></h2></header>
+    <ol class="flujo">
+      {flujo.map(([t, p], i) => <li class="flujo__paso rev"><span class="flujo__n">{i + 1}</span><h3>{t}</h3><p>{p}</p></li>)}
+    </ol>
+  </div></section>
+
+  <section class="banda tono-noche" aria-labelledby="nove-titulo"><div class="container fila">
+    <div class="stack rev">
+      <h2 id="nove-titulo" class="display display--600">Lo que este sitio <em>no ve</em></h2>
+      <p class="lead">Para lo tuyo está la guía.</p>
+      <p><a class="btn btn--primary" href="/guia">Abrir la guía</a></p>
+    </div>
+    <ul class="nove">
+      {noVe.map((t) => <li class="rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>{t}</li>)}
+    </ul>
+  </div></section>
+</Base>
+
+<script>
+  // Calculadora del nivel: la misma fórmula que usa el recolector (ingest/run.mjs).
+  const calc = document.getElementById('calc');
+  if (calc) {
+    const entradas = [...calc.querySelectorAll<HTMLInputElement>('input[data-factor]')];
+    const $ = (id: string) => document.getElementById(id)!;
+    const NOTAS: Record<string, [string, string]> = {
+      normal: ['Normal', '0 a 3 puntos.'],
+      elevated: ['Elevado', '4 a 7 puntos.'],
+      high: ['Alto', '8 puntos o más, o una plataforma caída.'],
+    };
+    const calcula = () => {
+      let puntos = 0, critica = false;
+      for (const e of entradas) {
+        const v = Number(e.value), tope = e.dataset.tope ? Number(e.dataset.tope) : Infinity;
+        puntos += Math.min(v, tope) * Number(e.dataset.peso);
+        if (e.dataset.factor === 'platforms_critical' && v > 0) critica = true;
+        (e.nextElementSibling as HTMLOutputElement).value = String(v);
+        e.style.setProperty('--lleno', `${(v / Number(e.max)) * 100}%`);
+      }
+      const nivel = critica || puntos >= 8 ? 'high' : puntos >= 4 ? 'elevated' : 'normal';
+      const k = Math.min(1, puntos / 12);
+      calc.dataset.nivel = nivel;
+      $('calc-puntos').textContent = String(puntos);
+      $('calc-nivel').textContent = NOTAS[nivel][0];
+      $('calc-nota').textContent = NOTAS[nivel][1];
+      $('calc-arco').style.strokeDasharray = `${k * 100} 100`;
+      $('calc-aguja').style.transform = `rotate(${-90 + k * 180}deg)`;
+    };
+    entradas.forEach((e) => e.addEventListener('input', calcula));
+    $('calc-cero').addEventListener('click', () => { entradas.forEach((e) => (e.value = '0')); calcula(); });
+    calcula();
+    try {
+      const r = await fetch('/api/v1/status');
+      if (r.ok) {
+        const f = ((await r.json()) as { status: { factors: Record<string, number> } }).status.factors;
+        const hoy = $('calc-hoy') as HTMLButtonElement;
+        const carga = () => { entradas.forEach((e) => (e.value = String(Math.min(Number(e.max), f[e.dataset.factor!] ?? 0)))); calcula(); };
+        hoy.disabled = false; hoy.addEventListener('click', carga);
+        // Arranca con los valores reales en cuanto la calculadora entra en pantalla.
+        const io = new IntersectionObserver((x) => { if (x[0].isIntersecting) { io.disconnect(); carga(); } }, { threshold: 0.4 });
+        io.observe(calc);
+      }
+    } catch {}
+  }
+</script>

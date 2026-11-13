@@ -1,0 +1,33 @@
+# Recolector: lee todas las fuentes y publica la instantánea en networkalert.dev cada 10 minutos.
+# Requiere el secreto NA_INGEST_KEY (la misma llave que `wrangler secret put NA_INGEST_KEY`).
+# Opcional: CF_RADAR_TOKEN (token gratuito de Cloudflare con permiso Radar:Read) para sumar cortes verificados.
+# Nota: el cron de GitHub puede atrasarse varios minutos en horas pico; el sitio avisa si el dato pasa de 45 min.
+name: Recolector
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: recolector
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  recolectar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Recolectar y publicar
+        env:
+          NA_INGEST_KEY: ${{ secrets.NA_INGEST_KEY }}
+          CF_RADAR_TOKEN: ${{ secrets.CF_RADAR_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node ingest/run.mjs --publicar

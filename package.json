@@ -1,0 +1,38 @@
+{
+  "name": "networkalert",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "networkalert.dev — alerta pública de riesgos de Internet para quien mantiene sitios y apps",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "check": "astro check",
+    "ingest": "node ingest/run.mjs",
+    "ingest:publicar": "node ingest/run.mjs --publicar",
+    "vigia": "node ingest/vigia.mjs",
+    "preview": "astro build && wrangler dev",
+    "deploy:preview": "astro build && wrangler deploy --env preview",
+    "deploy": "astro build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.4.11",
+    "d3-geo": "^3.1.2",
+    "i18n-iso-countries": "^7.14.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "@types/d3-geo": "^3.1.1",
+    "@types/topojson-client": "^3.1.5",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.162.0"
+  }
+}

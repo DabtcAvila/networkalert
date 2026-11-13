@@ -1,0 +1,58 @@
+---
+import Base from '../../layouts/Base.astro';
+import Portadilla from '../../components/Portadilla.astro';
+import { DONAR } from '../../data/site';
+---
+<Base title="Apoyar" description="Network Alert es gratuito y sin publicidad. Una donación ayuda a mantenerlo encendido.">
+  <Portadilla eyebrow="Sostener el proyecto" titulo="Gratis para <em>todos</em>" lead="Sin anuncios ni patrocinadores. Lo mantiene una persona; tú puedes ayudar." ilustracion="apoyar" />
+  <section class="banda"><div class="container fila fila--arriba">
+    <div class="stack rev">
+    <p class="aviso" id="don-cerrado">Las donaciones aún no están abiertas. Vuelve pronto.</p>
+    <p class="aviso aviso--error" id="don-error" role="alert" hidden></p>
+    <form class="donar stack" id="donar" hidden novalidate>
+      <fieldset class="donar__grupo">
+        <legend class="eyebrow">Frecuencia</legend>
+        <div class="filtros">
+          <button type="button" class="chip" data-frecuencia="unica" aria-pressed="true">Una vez</button>
+          <button type="button" class="chip" data-frecuencia="mensual" aria-pressed="false">Cada mes</button>
+        </div>
+      </fieldset>
+      <fieldset class="donar__grupo">
+        <legend class="eyebrow">Monto en pesos</legend>
+        <div class="montos">
+          {DONAR.montos.map((m) => <button type="button" class="monto" data-monto={m} aria-pressed={m === 100 ? 'true' : 'false'}><strong>${m}</strong><span>MXN</span></button>)}
+        </div>
+        <label class="donar__campo"><span>Otro monto</span>
+          <input class="buscador" id="don-otro" type="number" inputmode="numeric" min={DONAR.minimo} max={DONAR.maximo} step="1" placeholder={`De ${DONAR.minimo} a ${DONAR.maximo.toLocaleString('es-MX')}`} />
+        </label>
+      </fieldset>
+      <label class="donar__campo" id="don-correo-caja" hidden><span>Correo de tu cuenta de Mercado Pago</span>
+        <input class="buscador" id="don-correo" type="email" autocomplete="email" placeholder="tu@correo.com" />
+        <small class="meta">Mercado Pago lo pide para la suscripción. Cancelas cuando quieras.</small>
+      </label>
+      <p><button class="btn btn--primary" id="don-enviar" type="submit">Donar $100 con Mercado Pago</button></p>
+      <p class="meta">Pagas en Mercado Pago; aquí no vemos tu tarjeta. No es deducible de impuestos.</p>
+    </form>
+    </div>
+    <div class="stack--lg stack">
+      <div class="stack rev">
+        <h2 class="display display--500">En qué se usa</h2>
+        <ul class="usos">
+          <li><strong>Dominio.</strong> El único costo fijo.</li>
+          <li><strong>Tiempo.</strong> Para sumar fuentes y corregir.</li>
+          <li><strong>Margen.</strong> Por si el tráfico crece.</li>
+        </ul>
+      </div>
+      <div class="card stack--sm stack rev">
+        <h3>Lo que una donación no compra</h3>
+        <p class="ink-2">Donar no da voz sobre qué alertas aparecen. El sitio es igual para todos.</p>
+      </div>
+    </div>
+  </div></section>
+  <section class="banda tono-acento"><div class="container--narrow stack center">
+    <h2 class="display display--600 rev">Otras formas de ayudar</h2>
+    <p class="lead rev">Reporta un error, propón una fuente o compártelo.</p>
+    <p class="rev"><a class="btn btn--claro" href="mailto:contacto@networkalert.dev">Escribir</a></p>
+  </div></section>
+</Base>
+<script src="../../scripts/donar.ts"></script>

@@ -1,0 +1,71 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+
+// Cada punto: qué es, por qué importa, cómo revisarlo y con qué frecuencia. Lenguaje llano primero,
+// el comando o la herramienta exacta después.
+const puntos = [
+  { t: 'Fallas en ataque', p: 'De miles de fallas al año, pocas se usan en ataques. Si usas el producto afectado, actualiza hoy.', como: 'Busca lo que usas en las alertas.', cada: 'Diario', enlace: ['Ver alertas', '/alertas'] },
+  { t: 'Dependencias con fallas', p: 'Tu sitio usa cientos de paquetes ajenos. Si uno falla, tú lo heredas.', como: 'Activa Dependabot en GitHub: avisa y propone la corrección.', cada: 'Automático', enlace: ['Activar Dependabot', 'https://docs.github.com/en/code-security/dependabot/dependabot-alerts/about-dependabot-alerts'] },
+  { t: 'Paquetes maliciosos', p: 'Hay paquetes hechos para robar llaves: nombres casi idénticos a los legítimos o cuentas robadas.', como: 'Usa lockfile, instala con npm ci y desconfía de paquetes con pocos días de vida.', cada: 'Al agregar dependencias', enlace: ['Guía de GitHub', 'https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions'] },
+  { t: 'Llaves expuestas', p: 'Una llave subida a un repositorio público se encuentra en minutos.', como: 'Activa secret scanning en GitHub. Si una llave se filtró, revócala; borrarla no basta.', cada: 'Automático', enlace: ['Secret scanning', 'https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning'] },
+  { t: 'Cuentas maestras', p: 'Quien entra a tu registrador, DNS, GitHub o pagos controla todo.', como: 'Segundo factor en todas y contraseñas únicas en un gestor.', cada: 'Cada 3 meses', enlace: null },
+  { t: 'Vencimiento del dominio', p: 'Si vence, se apagan el sitio y el correo, y otro puede registrarlo.', como: 'Renovación automática, tarjeta vigente y un correo que sí leas.', cada: 'Cada mes', enlace: null },
+  { t: 'Certificado TLS', p: 'Vencido, tu sitio muestra una advertencia roja.', como: 'Un monitor externo que avise 14 días antes.', cada: 'Automático', enlace: null },
+  { t: 'Subdominios olvidados', p: 'Un subdominio que apunta a un servicio dado de baja puede ser tomado por alguien más.', como: 'Borra los registros DNS de servicios que ya no usas.', cada: 'Al dar de baja un servicio', enlace: null },
+  { t: 'Suplantación de correo', p: 'Sin SPF, DKIM y DMARC, cualquiera envía correo a tu nombre.', como: 'Publica los tres. Empieza DMARC en p=none y súbelo a reject.', cada: 'Al configurar', enlace: ['Qué es DMARC', 'https://www.cloudflare.com/learning/dmarc/dmarc-dkim-spf/'] },
+  { t: 'Cabeceras de seguridad', p: 'Unas pocas cabeceras HTTP bloquean clases enteras de ataque.', como: 'Mide tu sitio con Mozilla Observatory y corrige lo que marque.', cada: 'Al publicar', enlace: ['Mozilla Observatory', 'https://developer.mozilla.org/en-US/observatory'] },
+  { t: 'Caídas de proveedores', p: 'A veces el sitio no responde y no es tu código.', como: 'Antes de depurar, mira el estado de tus proveedores.', cada: 'Cuando algo falle', enlace: ['Ver plataformas', '/#plataformas'] },
+  { t: 'Monitoreo externo', p: 'Que funcione en tu computadora no cuenta; importa que cargue para el visitante.', como: 'Un monitor que revise tu página cada pocos minutos y te avise.', cada: 'Automático', enlace: null },
+  { t: 'Pagos y webhooks', p: 'Un webhook sin verificar acepta que cualquiera diga «este pedido ya se pagó».', como: 'Verifica la firma y deja el formulario de tarjeta al proveedor.', cada: 'Al integrar', enlace: null },
+  { t: 'Respaldos', p: 'Un respaldo que nunca restauraste es solo una esperanza.', como: 'Copia diaria fuera del proveedor y una restauración de prueba cada 6 meses.', cada: 'Diario', enlace: null },
+];
+const pasos = [
+  { t: 'Segundo factor', p: 'En registrador, DNS, GitHub y pagos.' },
+  { t: 'Renovación automática', p: 'De todos tus dominios, con tarjeta vigente.' },
+  { t: 'Dependabot y secret scanning', p: 'Activos en todos tus repositorios.' },
+];
+---
+<Base title="Qué vigilar" description="Catorce cosas que conviene vigilar si mantienes sitios web: qué son y cómo revisarlas.">
+  <Portadilla eyebrow="Guía" titulo="Catorce cosas que conviene <em>vigilar</em>" lead="Lo que más seguido tumba o compromete un sitio. Todo se puede dejar en automático." ilustracion="guia">
+    <a class="btn btn--primary" href="#p-1">Empezar por el punto 1</a>
+    <a class="enlace-flecha" href="#empezar">Solo tengo una hora</a>
+  </Portadilla>
+
+  <section class="banda">
+    <div class="container guia">
+      <nav class="indice" aria-label="Puntos de la guía" data-indice>
+        <p class="label">En esta guía</p>
+        <ol>
+          {puntos.map((x, i) => <li><a href={`#p-${i + 1}`}><span class="mono">{String(i + 1).padStart(2, '0')}</span>{x.t}</a></li>)}
+        </ol>
+      </nav>
+      <ol class="vigilar">
+        {puntos.map((x, i) => (
+          <li class="rev" id={`p-${i + 1}`}>
+            <span class="vigilar__n" aria-hidden="true"></span>
+            <h2>{x.t}</h2>
+            <p>{x.p}</p>
+            <div class="vigilar__como">
+              <p><strong>Cómo:</strong> {x.como}</p>
+              <p class="vigilar__cada"><span class="pastilla">{x.cada}</span>{x.enlace && <a class="enlace-flecha" href={x.enlace[1]} target={x.enlace[1].startsWith('/') ? undefined : '_blank'} rel={x.enlace[1].startsWith('/') ? undefined : 'noopener noreferrer'}>{x.enlace[0]}</a>}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="banda tono-acento" id="empezar" aria-labelledby="empezar-titulo">
+    <div class="container stack--lg stack">
+      <header class="cabecera-banda cabecera-banda--centro rev">
+        <h2 id="empezar-titulo" class="display display--600">Si hoy solo tienes una hora</h2>
+        <p class="lead">Estos tres pasos cubren casi todo el riesgo.</p>
+      </header>
+      <ol class="pasos">
+        {pasos.map((x, i) => <li class="paso rev"><span class="paso__n">{i + 1}</span><h3>{x.t}</h3><p>{x.p}</p></li>)}
+      </ol>
+      <p class="center meta">Esta guía orienta; no sustituye una auditoría.</p>
+    </div>
+  </section>
+</Base>

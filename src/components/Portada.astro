@@ -1,0 +1,121 @@
+---
+/**
+ * Portada: titular con frase que rota, esfera de red que gira en la esquina y dos tarjetas con lo de hoy
+ * (nivel del día y alerta destacada con barra de progreso). La esfera es un canvas que solo corre visible,
+ * respeta «reducir movimiento» y se puede pausar con el botón de la esquina (WCAG 2.2.2).
+ */
+interface Props { eyebrow: string; lead?: string }
+const { eyebrow, lead } = Astro.props;
+const frases = ['fallas explotadas', 'proveedores caídos', 'cortes de Internet'];
+---
+<section class="portada" aria-labelledby="portada-titulo">
+  <canvas class="portada__esfera" aria-hidden="true"></canvas>
+  <div class="container portada__in">
+    <div class="portada__txt">
+      <p class="eyebrow">{eyebrow}</p>
+      <h1 id="portada-titulo" class="portada__titulo">
+        Vigila lo que puede tumbar tu sitio:
+        <span class="rotador" aria-hidden="true">{frases.map((f, i) => <span style={`--i:${i}`}>{f}</span>)}</span>
+        <span class="visually-hidden">{frases.join(', ')}</span>
+      </h1>
+      {lead && <p class="portada__lead">{lead}</p>}
+      <div class="portada__acciones"><slot /></div>
+    </div>
+  </div>
+  <div class="container promos">
+    <a class="promo radar" id="radar" data-nivel="" href="/metodologia" role="status" aria-live="polite">
+      <span class="promo__sello" aria-hidden="true"><i></i></span>
+      <span class="promo__txt">
+        <span class="label">Nivel de hoy</span>
+        <strong class="promo__titulo radar__nivel" id="radar-nivel">···</strong>
+        <span class="promo__sub" id="radar-sub">Leyendo las fuentes</span>
+      </span>
+    </a>
+    <a class="promo promo--destacada" id="destacada" href="/alertas">
+      <span class="promo__txt">
+        <span class="label" id="destacada-cab">Lo más urgente</span>
+        <strong class="promo__titulo" id="destacada-titulo">Leyendo las alertas…</strong>
+        <span class="promo__sub" id="destacada-sub">Ver todas</span>
+      </span>
+      <span class="promo__barra" aria-hidden="true"><i id="destacada-barra"></i></span>
+    </a>
+  </div>
+  <button class="portada__pausa" type="button" aria-pressed="false" aria-label="Pausar la animación" title="Pausar la animación">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="i-pausa" d="M5 3h2v10H5zM9 3h2v10H9z" fill="currentColor" /><path class="i-play" d="M5 3l8 5-8 5z" fill="currentColor" /></svg>
+  </button>
+</section>
+
+<script>
+  const portada = document.querySelector<HTMLElement>('.portada');
+  if (portada) {
+    const reducido = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const boton = portada.querySelector<HTMLButtonElement>('.portada__pausa')!;
+    const lienzo = portada.querySelector<HTMLCanvasElement>('.portada__esfera')!;
+    const ctx = lienzo.getContext('2d');
+    let pausado = false;
+    try { pausado = localStorage.getItem('na-portada-quieta') === '1'; } catch {}
+
+    // Esfera de red: puntos repartidos con espiral de Fibonacci, cada uno unido a sus vecinos más cercanos.
+    const N = 150;
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (2 * (i + 0.5)) / N, r = Math.sqrt(1 - y * y), a = i * Math.PI * (3 - Math.sqrt(5));
+      pts.push([Math.cos(a) * r, y, Math.sin(a) * r]);
+    }
+    const aristas: [number, number][] = [];
+    const vistas = new Set<string>();
+    pts.forEach((p, i) => {
+      pts.map((q, j) => [j, (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2] as [number, number])
+        .filter(([j]) => j !== i).sort((a, b) => a[1] - b[1]).slice(0, 5)
+        .forEach(([j]) => { const k = i < j ? `${i}-${j}` : `${j}-${i}`; if (!vistas.has(k)) { vistas.add(k); aristas.push([i, j]); } });
+    });
+    // Unos cuantos nodos «encendidos» que laten: la red está viva.
+    const vivos = [7, 23, 41, 66, 88, 109, 131];
+
+    let w = 0, h = 0, raf = 0, visible = true, ang = 0.6, previo = 0;
+    const medir = () => {
+      const r = lienzo.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = r.width; h = r.height; lienzo.width = Math.round(w * dpr); lienzo.height = Math.round(h * dpr); ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    const dibuja = (t: number) => {
+      if (!ctx) return;
+      const R = w / 2 - 2, cx = w / 2, cy = h / 2, c = Math.cos(ang), s = Math.sin(ang), incl = 0.38, ci = Math.cos(incl), si = Math.sin(incl);
+      ctx.clearRect(0, 0, w, h);
+      const g = ctx.createRadialGradient(cx - R * 0.35, cy + R * 0.4, R * 0.05, cx, cy, R);
+      g.addColorStop(0, '#b9adff'); g.addColorStop(0.55, '#7a61fb'); g.addColorStop(1, '#5b3df5');
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      const P = pts.map(([x, y, z]) => { const x1 = x * c + z * s, z1 = -x * s + z * c, y1 = y * ci - z1 * si, z2 = y * si + z1 * ci; return [cx + x1 * R, cy - y1 * R, z2] as [number, number, number]; });
+      ctx.lineWidth = 1;
+      for (const [i, j] of aristas) {
+        const a = P[i], b = P[j], z = (a[2] + b[2]) / 2;
+        ctx.strokeStyle = `rgba(255,255,255,${z > 0 ? 0.22 + z * 0.5 : 0.1})`;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      P.forEach((p, i) => {
+        if (p[2] < 0) return;
+        const vivo = vivos.includes(i);
+        if (vivo) { const k = (t / 2200 + i * 0.13) % 1; ctx.beginPath(); ctx.arc(p[0], p[1], 3 + k * 12, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.7})`; ctx.stroke(); }
+        ctx.beginPath(); ctx.arc(p[0], p[1], vivo ? 3.2 : 1.6, 0, Math.PI * 2); ctx.fillStyle = vivo ? '#ffffff' : `rgba(255,255,255,${0.45 + p[2] * 0.5})`; ctx.fill();
+      });
+    };
+    const paso = (t: number) => { ang += Math.min(64, t - previo) * 0.00011; previo = t; dibuja(t); raf = requestAnimationFrame(paso); };
+    const correr = () => {
+      cancelAnimationFrame(raf);
+      if (ctx && !reducido.matches && !pausado && visible && !document.hidden) { previo = performance.now(); raf = requestAnimationFrame(paso); }
+      else dibuja(0);
+    };
+    const aplicar = () => {
+      portada.classList.toggle('portada--quieta', pausado);
+      boton.setAttribute('aria-pressed', String(pausado));
+      boton.setAttribute('aria-label', pausado ? 'Reanudar la animación' : 'Pausar la animación');
+      boton.title = boton.getAttribute('aria-label')!;
+      correr();
+    };
+    boton.addEventListener('click', () => { pausado = !pausado; try { localStorage.setItem('na-portada-quieta', pausado ? '1' : '0'); } catch {} aplicar(); });
+    new IntersectionObserver((e) => { visible = e[0].isIntersecting; correr(); }).observe(portada);
+    document.addEventListener('visibilitychange', correr);
+    reducido.addEventListener('change', correr);
+    new ResizeObserver(() => { medir(); correr(); }).observe(lienzo);
+    medir(); aplicar();
+  }
+</script>

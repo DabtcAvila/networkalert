@@ -1,0 +1,20 @@
+---
+/**
+ * Portadilla de las páginas internas: texto a la izquierda, ilustración animada a la derecha sobre un
+ * arco del color de la casa. `titulo` admite <em> para la palabra en degradado (texto propio, no de terceros).
+ */
+import Ilustracion from './Ilustracion.astro';
+interface Props { eyebrow: string; titulo: string; lead: string; ilustracion: 'guia' | 'fuentes' | 'metodologia' | 'api' | 'apoyar' | 'correcciones' | 'privacidad' | 'perdido' | 'gracias' }
+const { eyebrow, titulo, lead, ilustracion } = Astro.props;
+---
+<section class="portadilla">
+  <div class="container portadilla__in">
+    <div class="portadilla__txt">
+      <p class="eyebrow">{eyebrow}</p>
+      <h1 class="display display--700" set:html={titulo} />
+      <p class="lead">{lead}</p>
+      {Astro.slots.has('default') && <div class="cluster portadilla__acciones"><slot /></div>}
+    </div>
+    <div class="portadilla__arte"><Ilustracion tipo={ilustracion} /></div>
+  </div>
+</section>

@@ -1,0 +1,93 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+import { FUENTES } from '../../ingest/fuentes.mjs';
+const TIPO: Record<string, string> = { alerts: 'Alertas', platform: 'Estado de plataforma', context: 'Contexto', enrichment: 'Enriquecimiento' };
+const fuentes = FUENTES.filter((f: { kind: string }) => f.kind !== 'platform');
+const plataformas = FUENTES.filter((f: { kind: string }) => f.kind === 'platform');
+---
+<Base title="Fuentes y licencias" description="Todas las fuentes que compila Network Alert, con su licencia y enlace. Lo que no está aquí, no lo tenemos.">
+  <Portadilla eyebrow="Transparencia" titulo="Fuentes y <em>licencias</em>" lead="Solo compilamos fuentes públicas. Cada dato enlaza a su origen." ilustracion="fuentes">
+    <a class="btn btn--primary" href="#alertas-fuentes">Ver las fuentes</a>
+    <a class="enlace-flecha" href="/api/v1/sources">Verlas en JSON</a>
+  </Portadilla>
+
+  <section class="tono-noche" aria-label="Resumen de fuentes">
+    <div class="container datos">
+      <p class="dato rev"><strong data-contar>{fuentes.length}</strong><span>fuentes de alertas</span></p>
+      <p class="dato rev"><strong data-contar>{plataformas.length}</strong><span>páginas de estado</span></p>
+      <p class="dato rev"><strong><span data-contar>10</span> min</strong><span>entre lecturas</span></p>
+      <p class="dato rev"><strong id="respondieron">–</strong><span>respondieron</span></p>
+    </div>
+  </section>
+
+  <section class="banda" id="alertas-fuentes"><div class="container stack--lg stack">
+    <div class="stack">
+      <header class="cabecera-banda rev"><h2 class="display display--600"><em>Alertas</em></h2></header>
+      <ul class="fuentes">
+        {fuentes.map((f: { id: string; name: string; url: string; kind: string; license: string; optional?: boolean }) => (
+          <li class="fuente rev" data-fuente={f.id}>
+            <p class="fuente__cab"><span class="pastilla">{TIPO[f.kind]}</span>{f.optional && <span class="pastilla pastilla--tenue">Opcional</span>}<span class="fuente__estado" data-estado>Sin dato</span></p>
+            <h3><a href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a></h3>
+            <p class="meta">{f.license}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <div class="stack">
+      <header class="cabecera-banda rev"><h2 class="display display--600">Páginas de <em>estado</em></h2><p class="lead">El estado oficial que publica cada proveedor.</p></header>
+      <ul class="fuentes fuentes--chicas">
+        {plataformas.map((f: { id: string; name: string; url: string }) => (
+          <li class="fuente rev" data-fuente={f.id}>
+            <h3><a href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a></h3>
+            <p class="meta mono">{new URL(f.url).hostname}</p>
+            <p class="fuente__cab"><span class="fuente__estado" data-estado>Sin dato</span></p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div></section>
+
+  <section class="banda tono-noche"><div class="container stack--lg stack">
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 class="display display--600">Reglas de uso</h2></header>
+    <ul class="rasgos">
+      <li class="rasgo rev"><h3>Cada alerta conserva su licencia</h3><p>Nuestra compilación es <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.</p></li>
+      <li class="rasgo rev"><h3>Ojo con el uso comercial</h3><p>IODA, Cloudflare Radar y SANS ISC lo limitan.</p></li>
+      <li class="rasgo rev"><h3>El recolector se identifica</h3><p>Lee cada fuente cada diez minutos.</p></li>
+      <li class="rasgo rev"><h3>Las fallas se muestran</h3><p>Si una fuente no responde, aquí se ve.</p></li>
+    </ul>
+  </div></section>
+
+  <section class="banda"><div class="container fila">
+    <div class="stack rev">
+      <h2 class="display display--500">Cómo citar</h2>
+      <p class="ink-2">Cita Network Alert y la fuente original. ¿Administras una fuente? Escribe a <a href="mailto:contacto@networkalert.dev">contacto@networkalert.dev</a>.</p>
+    </div>
+    <div class="ventana rev">
+      <div class="ventana__barra"><span class="ventana__luces" aria-hidden="true"><i></i><i></i><i></i></span><span class="ventana__titulo">Cita sugerida</span><button class="ventana__copiar" type="button" data-copiar="#cita">Copiar</button></div>
+      <pre class="ventana__codigo ventana__codigo--corto" tabindex="0"><code id="cita">Network Alert (networkalert.dev), consultado el [fecha].
+Fuente primaria: [nombre y enlace de la fuente de la alerta].</code></pre>
+    </div>
+  </div></section>
+</Base>
+<script>
+  // Pinta la última lectura real de cada fuente. Sin JS las tarjetas siguen siendo correctas, solo sin la hora.
+  try {
+    const r = await fetch('/api/v1/sources');
+    if (r.ok) {
+      const { sources } = (await r.json()) as { sources: { id: string; ok: boolean | null; fetched_at: string; error?: string }[] };
+      let bien = 0, total = 0;
+      for (const s of sources) {
+        if (s.ok !== null) { total++; if (s.ok) bien++; }
+        const caja = document.querySelector<HTMLElement>(`[data-fuente="${CSS.escape(s.id)}"]`);
+        const e = caja?.querySelector<HTMLElement>('[data-estado]');
+        if (!caja || !e) continue;
+        const hora = new Date(s.fetched_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        e.textContent = s.ok === true ? `Leída ${hora}` : s.ok === null ? 'Omitida' : `Falló ${hora}`;
+        if (s.ok === false && s.error) e.title = s.error;
+        caja.dataset.ok = s.ok === true ? 'si' : s.ok === null ? 'omitida' : 'no';
+      }
+      const el = document.getElementById('respondieron'); if (el) el.textContent = `${bien}/${total}`;
+    }
+  } catch {}
+</script>

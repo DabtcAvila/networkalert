@@ -1,0 +1,39 @@
+---
+/**
+ * Globo 3D de cortes de Internet. El dibujo vive en src/scripts/globo.ts (canvas + d3-geo); aquí solo se
+ * calculan en build los centros de cada país (lon, lat, nombre en español) que usan el globo y la lista.
+ */
+import { geoCentroid, geoArea } from 'd3-geo';
+import { feature } from 'topojson-client';
+import paises50 from 'world-atlas/countries-50m.json';
+import iso from 'i18n-iso-countries';
+import es from 'i18n-iso-countries/langs/es.json';
+
+iso.registerLocale(es);
+// Centro de cada país: el del polígono más grande (evita que Francia caiga en el Atlántico por la Guayana).
+const centros: Record<string, [number, number, string]> = {};
+const fc = feature(paises50 as never, (paises50 as never as { objects: { countries: never } }).objects.countries) as unknown as { features: { id?: string; geometry: { type: string; coordinates: number[][][][] | number[][][] } }[] };
+for (const f of fc.features) {
+  const a2 = f.id ? iso.numericToAlpha2(String(f.id).padStart(3, '0')) : undefined;
+  if (!a2) continue;
+  let geom: unknown = f.geometry;
+  if (f.geometry.type === 'MultiPolygon') {
+    const polis = (f.geometry.coordinates as number[][][][]).map((c) => ({ type: 'Polygon', coordinates: c }));
+    geom = polis.reduce((m, p) => (geoArea(p as never) > geoArea(m as never) ? p : m));
+  }
+  const [lon, lat] = geoCentroid(geom as never);
+  centros[a2] = [Math.round(lon * 10) / 10, Math.round(lat * 10) / 10, iso.getName(a2, 'es') ?? a2];
+}
+centros.XK ??= [20.9, 42.6, 'Kosovo'];
+---
+<div class="globo mapa" data-centros={JSON.stringify(centros)} data-paises="[]">
+  <canvas tabindex="0" role="img" aria-label="Globo terráqueo que gira. Marca los países con señales de corte o degradación de Internet; la lista de abajo tiene el mismo dato en texto. Arrastra o usa las flechas para girarlo."></canvas>
+  <p class="globo__nota">Arrastra para girar</p>
+  <ul class="globo__leyenda">
+    <li><i class="ley ley--nodo"></i>Nodos y rutas de Internet (ilustrativo)</li>
+    <li><i class="ley ley--senal"></i>País con corte (IODA)</li>
+    <li><i class="ley ley--mx"></i>México</li>
+  </ul>
+</div>
+
+<script src="../scripts/globo.ts"></script>

@@ -1,0 +1,33 @@
+# Network Alert
+
+> Recurso público y gratuito que compila, cada 10 minutos, los riesgos de Internet que pueden afectar a quien mantiene sitios web y apps: vulnerabilidades con explotación confirmada, caídas de plataformas y cortes de Internet por país. Sitio en español; los títulos de las alertas van en el idioma de su fuente.
+
+Cada alerta incluye:
+- Enlace a su fuente primaria (`url`), siempre https
+- Severidad normalizada: critical, high, medium, low, info
+- Fecha de publicación en la fuente y fecha en que Network Alert la vio por primera vez (`first_seen`)
+- Licencia de la fuente (ver `sources[].license`)
+
+Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vulnerabilidades sin aviso público, incidentes que el proveedor no ha reconocido, ni el estado de los dominios de quien consulta.
+
+## API (sin llave, CORS abierto, caché 60 s)
+
+- [Nivel del día](https://networkalert.dev/api/v1/status): nivel global, factores y conteos
+- [Alertas](https://networkalert.dev/api/v1/alerts): filtros category, severity, min_severity, source, country, tag, q, since, limit
+- [Plataformas](https://networkalert.dev/api/v1/platforms): estado de hosting, pagos, repositorios y mensajería
+- [Fuentes](https://networkalert.dev/api/v1/sources): catálogo con licencia y última lectura
+- [Instantánea completa](https://networkalert.dev/api/v1/snapshot.json)
+- [OpenAPI 3.1](https://networkalert.dev/openapi.json)
+
+## Páginas
+
+- [Qué vigilar](https://networkalert.dev/guia): catorce puntos para quien mantiene sitios
+- [Fuentes y licencias](https://networkalert.dev/fuentes)
+- [Metodología](https://networkalert.dev/metodologia): criterios de severidad y fórmula del nivel
+- [Correcciones](https://networkalert.dev/correcciones)
+
+## Índices
+
+- [RSS](https://networkalert.dev/feed.xml)
+- [JSON Feed](https://networkalert.dev/feed.json)
+- [Sitemap](https://networkalert.dev/sitemap-index.xml)

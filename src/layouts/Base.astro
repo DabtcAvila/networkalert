@@ -1,0 +1,41 @@
+---
+import '../styles/global.css';
+import { Font } from 'astro:assets';
+import Seo from '../components/Seo.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../data/site';
+
+interface Props { title: string; description: string; noindex?: boolean; rawTitle?: boolean; bodyClass?: string }
+const { title, description, noindex, rawTitle, bodyClass } = Astro.props;
+const ld = [
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE.name, url: SITE.url, description: SITE.descripcion, inLanguage: 'es-MX' },
+  { '@context': 'https://schema.org', '@type': 'Organization', name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon-512.png`, email: SITE.contacto },
+];
+---
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <Seo title={title} description={description} noindex={noindex} rawTitle={rawTitle} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title="Network Alert · alertas altas y críticas" href="/feed.xml" />
+    <link rel="alternate" type="application/feed+json" title="Network Alert · alertas altas y críticas" href="/feed.json" />
+    <Font cssVariable="--font-text" preload={[{ style: 'normal', weight: 400 }, { style: 'normal', weight: 700 }]} />
+    <Font cssVariable="--font-ui" />
+    {ld.map((obj) => <script type="application/ld+json" set:html={JSON.stringify(obj)} />)}
+    <slot name="head" />
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#contenido">Ir al contenido</a>
+    <Header />
+    <main id="contenido">
+      <slot />
+    </main>
+    <Footer />
+    <script src="../scripts/motion.ts"></script>
+  </body>
+</html>

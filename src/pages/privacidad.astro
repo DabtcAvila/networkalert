@@ -1,0 +1,31 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+const no = [
+  ['Sin cuentas', 'No hay registro.', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0M4 4l16 16'],
+  ['Sin cookies', 'Ni propias ni de terceros.', 'M12 21a9 9 0 119-9 4 4 0 01-5-4 4 4 0 01-4-5M9 14h.01M14 16h.01M10 9h.01'],
+  ['Sin analítica', 'Nadie te sigue.', 'M4 20V10M10 20V4M16 20v-7M22 20H2M3 3l18 18'],
+  ['Sin publicidad', 'Nadie paga por aparecer.', 'M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1zM16 9l5 6M21 9l-5 6'],
+];
+---
+<Base title="Privacidad" description="Network Alert no usa cookies, no rastrea y no pide registro.">
+  <Portadilla eyebrow="Transparencia" titulo="Tu visita es <em>solo tuya</em>" lead="No hay cuentas, cookies, analítica ni publicidad." ilustracion="privacidad" />
+  <section class="tono-noche banda banda--compacta"><div class="container">
+    <ul class="rasgos">
+      {no.map(([t, p, d]) => <li class="rasgo rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={d} /></svg><h3>{t}</h3><p>{p}</p></li>)}
+    </ul>
+  </div></section>
+  <section class="banda"><div class="container"><div class="prose prose--centro">
+    <h2>En tu navegador</h2>
+    <p>Dos datos que no salen de tu equipo: si pausaste la animación y la hora de tu última visita.</p>
+    <h2>En el servidor</h2>
+    <p>Cloudflare procesa tu IP para servir la página y frenar abusos. No guardamos historial de visitantes.</p>
+    <h2>Donaciones</h2>
+    <p>Las procesa Mercado Pago; no vemos tu tarjeta. En el apoyo mensual, tu correo va a Mercado Pago y no se guarda aquí. Quien administra el sitio ve ahí el monto y los datos de cada pago.</p>
+    <h2>Enlaces externos</h2>
+    <p>Cada fuente tiene su propia política.</p>
+    <h2>Contacto</h2>
+    <p><a href="mailto:contacto@networkalert.dev">contacto@networkalert.dev</a></p>
+    <p class="meta">Última actualización: 13 de noviembre de 2026.</p>
+  </div></div></section>
+</Base>
