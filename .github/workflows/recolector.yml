@@ -6,7 +6,8 @@ name: Recolector
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # Minutos 3, 13, 23…: fuera del minuto cero, que es cuando GitHub más atrasa las corridas programadas.
+    - cron: '3-59/10 * * * *'
   workflow_dispatch:
 
 concurrency:
