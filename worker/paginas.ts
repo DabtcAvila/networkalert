@@ -67,13 +67,13 @@ export type Estado = { activa: boolean; cerrada?: string | null; sevMax?: number
 
 /** Cuerpo de la página de una alerta. */
 export function ficha(a: Guardada, e: Estado): string {
-  const x = (a.extra ?? {}) as { cve?: string; ghsa?: string; cvss?: number; epss?: { score: number; percentile?: number }; ransomware?: boolean; due?: string; phase?: string; cwes?: string[]; packages?: { ecosystem?: string; name?: string; range?: string; patched?: string | null }[] };
+  const x = (a.extra ?? {}) as { cve?: string; ghsa?: string; cvss?: number; epss?: { score: number; percentile?: number }; ransomware?: boolean; due?: string; phase?: string; cwes?: string[]; grouped?: number; incidents?: { name?: string; url?: string; severity?: string; phase?: string | null; started?: string }[]; packages?: { ecosystem?: string; name?: string; range?: string; patched?: string | null }[] };
   const fuente = a.source_name ?? a.source;
   const mes = String(a.first_seen).slice(0, 7);
   const tecnica = a.category === 'vulnerability' || a.category === 'advisory';
   const estado = e.activa
     ? '<strong>Activa.</strong> Aparece en la lectura más reciente de la fuente.'
-    : `<strong>En el archivo.</strong> ${tecnica ? `Salió de la lista de alertas recientes el ${fecha(e.cerrada)}. Eso no quiere decir que el riesgo terminó: las versiones sin corregir siguen expuestas.` : `La fuente dejó de reportarla el ${fecha(e.cerrada)}.`}`;
+    : `<strong>En el archivo.</strong> ${tecnica ? `Salió de la lista de alertas recientes el ${fecha(e.cerrada)}. Eso no quiere decir que el riesgo terminó: las versiones sin corregir siguen expuestas.` : x.grouped ? `Este grupo dejó de publicarse el ${fecha(e.cerrada)}: quedaron menos de tres incidentes menores abiertos a la vez.` : `La fuente dejó de reportarla el ${fecha(e.cerrada)}.`}`;
   const dato = (k: string, v: string) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
   const datos = [
     dato('Gravedad', esc(SEV[a.severity] ?? a.severity) + (e.sevMax != null && e.sevMax < (ORDEN[a.severity] ?? 4) ? ` (llegó a ${esc(SEV[CLAVES[e.sevMax]]).toLowerCase()})` : '')),
@@ -102,6 +102,7 @@ export function ficha(a: Guardada, e: Estado): string {
     // Un incidente de plataforma o un corte que ya terminó no pide ninguna acción.
     + (a.action && (e.activa || tecnica) ? `<section class="stack--sm stack"><h2>Qué hacer</h2><p class="ficha__texto alerta__accion">${esc(a.action)}</p></section>` : '')
     + (paquetes.length ? `<section class="stack--sm stack"><h2>Paquetes afectados</h2><div class="tabla-wrap"><table class="tabla"><thead><tr><th>Paquete</th><th>Gestor</th><th>Versiones afectadas</th><th>Corregido en</th></tr></thead><tbody>${paquetes.map((p) => `<tr><td class="mono">${esc(p.name)}</td><td>${esc(p.ecosystem)}</td><td class="mono">${esc(p.range ?? '')}</td><td class="mono">${p.patched ? esc(p.patched) : 'Sin versión corregida'}</td></tr>`).join('')}</tbody></table></div></section>` : '')
+    + (x.incidents?.length ? `<section class="stack--sm stack"><h2>${e.activa ? 'Incidentes abiertos' : 'Incidentes que incluía'}</h2><ul class="ficha__lista">${x.incidents.map((i) => `<li><a href="${esc(https(i.url))}" target="_blank" rel="noopener noreferrer" lang="en">${esc(i.name)}</a><span class="meta"> · ${esc(SEV[i.severity ?? ''] ?? '')}${i.phase ? ` · ${esc(FASE[i.phase] ?? i.phase)}` : ''}${i.started ? ` · desde el ${fecha(i.started)}` : ''}</span></li>`).join('')}</ul>${(x.grouped ?? 0) > x.incidents.length ? `<p class="meta">Se muestran ${x.incidents.length} de ${x.grouped}; el resto está en la página de estado.</p>` : ''}</section>` : '')
     + `<section class="stack--sm stack"><h2>Datos</h2><dl class="ficha__datos">${datos}</dl></section>`
     + `<p class="cluster"><a class="btn btn--primary" href="${esc(https(a.url))}" target="_blank" rel="noopener noreferrer">Ver en la fuente</a><a class="enlace-flecha" href="/mi-lista">Recibir avisos de lo que uso</a><a class="enlace-flecha" href="/alertas">Todas las alertas</a></p>`
     + `<p class="meta">Network Alert compila y resume; la fuente manda. ${a.title_es || a.summary_es ? 'La traducción es automática. ' : ''}Verifica en la fuente antes de actuar. ¿Viste un error? Está en <a href="/correcciones">Correcciones</a> cómo reportarlo.</p>`

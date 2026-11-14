@@ -13,7 +13,9 @@ export async function pedir(url, { timeout = 20_000, headers = {}, tipo = 'json'
 }
 
 const iso = (d) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? null : t.toISOString(); };
-const recorta = (s, n = 320) => { const t = String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
+// Texto plano y corto. Algunas fuentes escapan dos veces (&amp;gt;): se deshace aquí; al mostrarlo siempre se vuelve a escapar.
+const ENTIDAD = { '&gt;': '>', '&lt;': '<', '&quot;': '"', '&#39;': "'", '&apos;': "'", '&amp;': '&', '&nbsp;': ' ' };
+const recorta = (s, n = 320) => { const t = String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/&(gt|lt|quot|#39|apos|amp|nbsp);/g, (e) => ENTIDAD[e]).replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
 const desdeHace = (dias) => Date.now() - dias * DIA;
 // Fecha en palabras («4 de diciembre de 2026») para el campo `action`.
 const fechaLarga = (d) => { const t = new Date(`${String(d).slice(0, 10)}T12:00:00Z`); return Number.isNaN(t.getTime()) ? null : new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(t); };
@@ -102,7 +104,7 @@ async function nodejs() {
   return leerFeed(xml).filter((e) => Date.parse(e.fecha) >= corte).map((e) => ({
     id: `nodejs:${e.url.split('/').filter(Boolean).pop()}`,
     source: 'nodejs-security', category: 'advisory', severity: 'medium',
-    title: `Node.js: ${e.titulo}`, summary: recorta(e.resumen), action: 'Actualiza Node.js a la versión más reciente de la línea que usas (la fuente lista las versiones corregidas).', url: e.url, published: iso(e.fecha), status: 'active', tags: ['nodejs'], extra: {},
+    title: `Node.js: ${e.titulo}`, summary: recorta(e.resumen) || 'Aviso de seguridad del equipo de Node.js. El detalle y las versiones corregidas están en la fuente.', action: 'Actualiza Node.js a la versión más reciente de la línea que usas (la fuente lista las versiones corregidas).', url: e.url, published: iso(e.fecha), status: 'active', tags: ['nodejs'], extra: {},
   }));
 }
 
@@ -113,7 +115,9 @@ async function certcc() {
   return leerFeed(xml).filter((e) => Date.parse(e.fecha) >= corte).map((e) => ({
     id: `certcc:${(e.url.match(/id\/(\d+)/) ?? [])[1] ?? e.id}`,
     source: 'cert-cc', category: 'advisory', severity: 'medium',
-    title: e.titulo, summary: recorta(e.resumen), url: e.url, published: iso(e.fecha), status: 'active', tags: ['coordinada'], extra: {},
+    // Las notas empiezan con el encabezado «Overview»: se quita para que el resumen abra con el contenido.
+    title: e.titulo, summary: recorta(String(e.resumen).replace(/<[^>]+>/g, ' ').replace(/^\s*Overview\b[\s:]*/i, '')), url: e.url, published: iso(e.fecha), status: 'active', tags: ['coordinada'], extra: {},
+    action: 'Revisa en la nota si usas alguno de los productos afectados: ahí está la lista de fabricantes y cuáles ya publicaron corrección.',
   }));
 }
 
@@ -150,6 +154,7 @@ async function ioda() {
       summary: p.senales.map((s) => `${NOMBRE[s.signal] ?? s.signal}${s.drop != null ? ` −${s.drop}%` : ''}`).join(' · '),
       url: `https://ioda.inetintel.cc.gatech.edu/country/${code}`,
       published: iso(desde * 1000), status: 'active', countries: [code], tags: ['corte'],
+      action: `No depende de ti. Si tienes visitantes o servidores en ${p.nombre}, pueden tener lentitud o no poder entrar; la gráfica de la fuente muestra cuándo se recupera.`,
       extra: { signals: p.senales, max_drop_pct: caida },
     };
   });
@@ -223,7 +228,34 @@ async function statuspage(p) {
     published: iso(i.started_at ?? i.created_at), updated: iso(i.updated_at), status: 'active',
     tags: [p.grupo, ...(i.components ?? []).slice(0, 4).map((c) => c.name)], extra: { platform: p.id, phase: i.status, impact: i.impact },
   }));
-  return { plataforma: { id: p.id, name: p.name, group: p.grupo, url: p.base, indicator: st.status?.indicator ?? 'none', description: st.status?.description ?? '', incidents: incidentes.length }, incidentes };
+  return { plataforma: { id: p.id, name: p.name, group: p.grupo, url: p.base, indicator: st.status?.indicator ?? 'none', description: st.status?.description ?? '', incidents: incidentes.length }, incidentes: agrupa(p, incidentes) };
+}
+
+// Menos ruido: cuando una plataforma tiene tres o más incidentes menores abiertos a la vez (lo habitual en las que
+// reportan cada operador o región por separado), se publican como una sola alerta que los lista. Los altos y críticos
+// siempre van uno por uno.
+const MIN_GRUPO = 3;
+export function agrupa(p, incidentes) {
+  const menores = incidentes.filter((i) => i.severity !== 'critical' && i.severity !== 'high');
+  if (menores.length < MIN_GRUPO) return incidentes;
+  const recientes = [...menores].sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
+  const sinNombre = (t) => t.replace(new RegExp(`^${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*`), '');
+  const ORD = { medium: 0, low: 1, info: 2 };
+  const grupo = {
+    id: `status:${p.id}:varios`,
+    source: `status-${p.id}`, category: 'platform',
+    severity: [...menores].sort((a, b) => (ORD[a.severity] ?? 3) - (ORD[b.severity] ?? 3))[0].severity,
+    title: `${p.name}: ${menores.length} incidentes menores abiertos`,
+    summary: recorta(recientes.slice(0, 4).map((i) => sinNombre(i.title)).join(' · ') + (menores.length > 4 ? ` · y ${menores.length - 4} más` : ''), 480),
+    action: ACCION_PLATAFORMA,
+    url: p.base,
+    published: recientes[0].published,
+    updated: recientes.map((i) => i.updated ?? i.published).sort().at(-1),
+    status: 'active',
+    tags: [p.grupo],
+    extra: { platform: p.id, grouped: menores.length, incidents: recientes.slice(0, 15).map((i) => ({ name: sinNombre(i.title), url: i.url, severity: i.severity, phase: i.extra?.phase ?? null, started: i.published })) },
+  };
+  return [...incidentes.filter((i) => i.severity === 'critical' || i.severity === 'high'), grupo];
 }
 
 // Stripe publica un JSON propio.

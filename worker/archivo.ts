@@ -19,7 +19,8 @@ const MAX_ESCRITURAS = 400;
 // Fuentes que reutilizan el mismo identificador en cada episodio (un país con cortes, Stripe degradado):
 // en el archivo cada episodio lleva el día en que empezó, para que uno nuevo no pise al anterior.
 const RECURRENTES = new Set(['ioda', 'status-stripe']);
-export const idArchivo = (a: Pick<Alerta, 'id' | 'source' | 'first_seen'>) => (RECURRENTES.has(a.source) ? `${a.id}:${String(a.first_seen).slice(0, 10)}` : a.id);
+// Lo mismo pasa con el grupo de incidentes menores de una plataforma (`status:<plataforma>:varios`).
+export const idArchivo = (a: Pick<Alerta, 'id' | 'source' | 'first_seen'>) => (RECURRENTES.has(a.source) || a.id.endsWith(':varios') ? `${a.id}:${String(a.first_seen).slice(0, 10)}` : a.id);
 /** Parte final de la dirección de la página: /alerta/<slug>. */
 export const slugDe = (a: Pick<Alerta, 'id' | 'source' | 'first_seen'>) =>
   idArchivo(a).toLowerCase().replace(/^ghsa:ghsa-/, 'ghsa-').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120);
