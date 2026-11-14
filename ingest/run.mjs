@@ -21,20 +21,61 @@ async function anterior() {
   return null;
 }
 
-// Nivel global: una sola palabra que resume «¿tengo que mirar esto hoy?». La fórmula es pública (/metodologia).
+// Nivel del día: una palabra y una frase que responden «¿hay hoy algo que toque a mucha gente?».
+// Solo sube con lo que alcanza a muchos: una plataforma grande caída, una falla que ya se está atacando en un
+// producto muy usado, una falla crítica en un paquete muy usado o un país entero sin Internet (México pesa más). Lo que toca a pocos
+// (equipos de empresa, paquetes poco usados) sigue en la lista de alertas, pero no mueve el nivel: si lo moviera,
+// el nivel estaría «elevado» casi todos los días y dejaría de decir algo. La fórmula es pública (/metodologia).
+const enumera = (xs, max = 3) => {
+  const u = [...new Set(xs.filter(Boolean))], v = u.slice(0, max), resto = u.length - v.length;
+  if (resto > 0) return `${v.join(', ')} y ${resto} más`;
+  return v.length > 1 ? `${v.slice(0, -1).join(', ')} y ${v.at(-1)}` : v[0] ?? '';
+};
+// Nombre corto de lo afectado, para la frase.
+const nombreProducto = (a) => {
+  if (a.extra?.grouped) return a.title.split(':')[0];
+  const [, fabricante, producto] = a.tags ?? [];
+  if (!producto || /^multiple\b/i.test(producto)) return fabricante;
+  return producto.toLowerCase().startsWith(String(fabricante).toLowerCase()) ? producto : `${fabricante} ${producto}`;
+};
+const nombrePaquete = (a) => { const i = a.title.indexOf(': '); return i > 0 && i <= 28 ? a.title.slice(0, i) : a.extra?.packages?.[0]?.name ?? a.title.slice(0, 28); };
+
 function nivel(alertas, plataformas) {
   const reciente = (a, h) => Date.now() - Date.parse(a.published) <= h * HORA;
   const activas = alertas.filter((a) => a.status === 'active' && !a.stale);
-  const platCrit = plataformas.filter((p) => p.indicator === 'critical').length;
-  const platMayor = plataformas.filter((p) => p.indicator === 'major').length;
-  // Una alerta que junta varias fallas cuenta por las que junta: agrupar no cambia la fórmula.
+  const muyUsado = (a) => a.extra?.reach?.level === 'wide';
   const suma = (xs) => xs.reduce((n, x) => n + x, 0);
-  const kev72 = suma(activas.filter((a) => a.source === 'cisa-kev' && reciente(a, 72)).map((a) => a.extra?.grouped ?? 1));
-  const crit72 = suma(activas.filter((a) => a.source === 'github-advisories').map((a) => (a.extra?.advisories ? a.extra.advisories.filter((x) => x.severity === 'critical' && reciente(x, 72)).length : a.severity === 'critical' && reciente(a, 72) ? 1 : 0)));
-  const cortes = activas.filter((a) => a.category === 'connectivity' && a.severity === 'high').length;
-  const puntos = 3 * platCrit + 2 * platMayor + Math.min(kev72, 4) + Math.min(crit72, 3) + Math.min(cortes, 3);
-  const level = platCrit > 0 || puntos >= 8 ? 'high' : puntos >= 4 ? 'elevated' : 'normal';
-  return { level, points: puntos, factors: { platforms_critical: platCrit, platforms_major: platMayor, kev_72h: kev72, critical_advisories_72h: crit72, country_outages_high: cortes } };
+
+  const caidas = plataformas.filter((p) => p.indicator === 'critical'), mayores = plataformas.filter((p) => p.indicator === 'major');
+  // Una alerta que junta varias fallas cuenta por las que junta.
+  const enAtaque = activas.filter((a) => a.source === 'cisa-kev' && muyUsado(a) && reciente(a, 72));
+  const nAtaque = suma(enAtaque.map((a) => a.extra?.grouped ?? 1));
+  const criticas = activas.filter((a) => a.source === 'github-advisories' && muyUsado(a))
+    .map((a) => ({ a, n: a.extra?.advisories ? a.extra.advisories.filter((x) => x.severity === 'critical' && reciente(x, 72)).length : a.severity === 'critical' && reciente(a, 72) ? 1 : 0 }))
+    .filter((x) => x.n > 0);
+  const nCriticas = suma(criticas.map((x) => x.n));
+  const cortes = activas.filter((a) => a.category === 'connectivity' && a.severity === 'high');
+  // Un corte en México entero pesa más: es el país de casi todos los que leen este sitio. Basta para «elevado».
+  const mexico = cortes.some((a) => (a.countries ?? []).includes('MX')) ? 1 : 0;
+  const otros = cortes.filter((a) => !(a.countries ?? []).includes('MX'));
+
+  const puntos = 3 * caidas.length + 2 * mayores.length + 2 * Math.min(nAtaque, 3) + Math.min(nCriticas, 3) + 4 * mexico + Math.min(otros.length, 3);
+  const level = caidas.length > 0 || puntos >= 8 ? 'high' : puntos >= 4 ? 'elevated' : 'normal';
+
+  // La frase nombra lo que cuenta, de lo más grave a lo menos.
+  const razones = [
+    caidas.length ? `caída en ${enumera(caidas.map((p) => p.name))}` : '',
+    mayores.length ? `falla mayor en ${enumera(mayores.map((p) => p.name))}` : '',
+    nAtaque ? `${nAtaque === 1 ? 'una falla que ya se está atacando' : `${nAtaque} fallas que ya se están atacando`} en ${enumera(enAtaque.map(nombreProducto))}` : '',
+    nCriticas ? `${nCriticas === 1 ? 'una falla crítica' : `${nCriticas} fallas críticas`} en ${enumera(criticas.map((x) => nombrePaquete(x.a)))}` : '',
+    cortes.length ? `corte de Internet en ${enumera([mexico ? 'México' : '', ...otros.map((a) => a.title.split(':')[0])])}` : '',
+  ].filter(Boolean);
+  const lista = razones.join('; ');
+  const summary = level === 'high' ? `Hay algo grave en curso: ${lista}.`
+    : level === 'elevated' ? `Conviene revisar hoy: ${lista}.`
+    : razones.length ? `Nada grave para la mayoría. Para tener en cuenta: ${lista}.` : 'Nada fuera de lo habitual.';
+  return { level, points: puntos, summary, reasons: razones,
+    factors: { platforms_critical: caidas.length, platforms_major: mayores.length, exploited_wide_72h: nAtaque, critical_packages_wide_72h: nCriticas, mexico_outage: mexico, country_outages_high: otros.length } };
 }
 
 const previa = await anterior();

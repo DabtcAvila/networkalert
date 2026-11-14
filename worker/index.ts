@@ -74,7 +74,7 @@ const NOTAS = [
 ];
 
 type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; escalated_at?: string; url: string; page?: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
-type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: Mexico | null; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
+type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; summary?: string; reasons?: string[]; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: Mexico | null; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
 let memo: { t: number; texto: string; datos: Snapshot } | null = null;

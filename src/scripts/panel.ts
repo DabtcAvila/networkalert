@@ -7,14 +7,14 @@ import { leeLista } from './lista-local';
 type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; page?: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number; reach?: { level?: string } } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
-type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: { affected_states: number; affected_providers: number } | null; alerts: Alerta[]; sources: Fuente[] };
+type Snapshot = { generated_at: string; status: { level: string; points: number; summary?: string; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: { affected_states: number; affected_providers: number } | null; alerts: Alerta[]; sources: Fuente[] };
 
 const SEV: Record<string, string> = { critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja', info: 'Informativa' };
 const CAT: Record<string, string> = { vulnerability: 'Vulnerabilidad', platform: 'Plataforma', connectivity: 'Conectividad', advisory: 'Aviso' };
 const NIVEL: Record<string, [string, string]> = {
   normal: ['Normal', 'Nada fuera de lo habitual.'],
-  elevated: ['Elevado', 'Revisa las alertas altas hoy.'],
-  high: ['Alto', 'Incidentes mayores en curso.'],
+  elevated: ['Elevado', 'Hay algo que conviene revisar hoy.'],
+  high: ['Alto', 'Hay algo grave en curso.'],
 };
 const IND: Record<string, string> = { none: 'Operando', minor: 'Degradación menor', major: 'Incidente mayor', critical: 'Caída crítica', maintenance: 'Mantenimiento' };
 const ORDEN: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -95,7 +95,8 @@ function pintaNivel(s: Snapshot) {
   const [nombre, sub] = NIVEL[s.status.level] ?? ['Sin dato', ''];
   $('radar')?.setAttribute('data-nivel', s.status.level);
   const n = $('radar-nivel'); if (n) n.textContent = nombre;
-  const sb = $('radar-sub'); if (sb) sb.textContent = sub;
+  // La frase del día la arma el recolector y nombra lo que cuenta; si falta, va el texto fijo del nivel.
+  const sb = $('radar-sub'); if (sb) sb.textContent = s.status.summary ?? sub;
   const act = $('actualizado');
   if (act) { act.textContent = `Actualizado ${hace(s.generated_at)} · ${s.counts.sources_ok} de ${s.counts.sources_total} fuentes`; act.setAttribute('title', new Date(s.generated_at).toLocaleString('es-MX')); }
   const viejo = Date.now() - Date.parse(s.generated_at) > 45 * 60000;

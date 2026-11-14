@@ -51,7 +51,7 @@
     ],
     "operationId": "status",
     "summary": "Nivel del día y conteos",
-    "description": "Nivel global (normal, elevated, high) con los factores exactos del cálculo. Se recalcula con cada corrida del recolector, cada 10 minutos.",
+    "description": "Nivel global (normal, elevated, high) con la frase que lo explica y los factores exactos del cálculo. Solo cuenta lo que alcanza a mucha gente (ver /metodologia). Se recalcula con cada corrida del recolector, cada 10 minutos.",
     "responses": {
      "200": {
       "description": "Nivel y conteos.",
@@ -1101,6 +1101,15 @@
      },
      "points": {
       "type": "integer"
+     },
+     "summary": {
+      "type": "string",
+      "description": "Frase en español que dice por qué el nivel es el que es y nombra lo que cuenta."
+     },
+     "reasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Las razones de la frase, una por elemento. Vacío si no hay nada que mencionar."
      },
      "factors": {
       "type": "object",

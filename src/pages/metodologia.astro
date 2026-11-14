@@ -38,10 +38,11 @@ const entra = [
 ];
 const factores = [
   { k: 'platforms_critical', t: 'Plataformas caídas', peso: 3, max: 6, tope: null },
-  { k: 'platforms_major', t: 'Plataformas con incidente mayor', peso: 2, max: 6, tope: null },
-  { k: 'kev_72h', t: 'Fallas en ataque nuevas (72 h)', peso: 1, max: 8, tope: 4 },
-  { k: 'critical_advisories_72h', t: 'Avisos críticos de GitHub (72 h)', peso: 1, max: 8, tope: 3 },
-  { k: 'country_outages_high', t: 'Países con corte alto', peso: 1, max: 8, tope: 3 },
+  { k: 'platforms_major', t: 'Plataformas con falla mayor', peso: 2, max: 6, tope: null },
+  { k: 'exploited_wide_72h', t: 'Fallas que ya se están atacando, en productos muy usados (72 h)', peso: 2, max: 6, tope: 3 },
+  { k: 'critical_packages_wide_72h', t: 'Fallas críticas en paquetes muy usados (72 h)', peso: 1, max: 8, tope: 3 },
+  { k: 'mexico_outage', t: 'México entero con corte de Internet', peso: 4, max: 1, tope: null },
+  { k: 'country_outages_high', t: 'Otros países enteros con corte de Internet', peso: 1, max: 8, tope: 3 },
 ];
 const flujo = [
   ['La fuente publica', 'CISA, GitHub, IODA…'],
@@ -84,7 +85,7 @@ const noVe = [
   </div></section>
 
   <section class="banda tono-acento" id="nivel" aria-labelledby="nivel-titulo"><div class="container stack--lg stack">
-    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="nivel-titulo" class="display display--600">El nivel del día</h2><p class="lead">Mueve los factores y mira cómo cambia.</p></header>
+    <header class="cabecera-banda cabecera-banda--centro rev"><h2 id="nivel-titulo" class="display display--600">El nivel del día</h2><p class="lead">Responde una pregunta: ¿hay hoy algo que toque a mucha gente? Solo cuenta lo que alcanza a muchos. Lo que toca a pocos sigue en las alertas, pero no sube el nivel. Mueve los factores y mira cómo cambia.</p></header>
     <div class="calc rev" id="calc" data-nivel="normal">
       <div class="calc__factores">
         {factores.map((f) => (
@@ -110,7 +111,7 @@ const noVe = [
         <p class="calc__nota" id="calc-nota">0 a 3 puntos.</p>
       </div>
     </div>
-    <p class="center meta">El nivel es general: no sabe qué usas tú. Para eso está el buscador.</p>
+    <p class="center meta">Normal no quiere decir «sin riesgos»: quiere decir que hoy no hay nada fuera de lo habitual para la mayoría. El nivel no sabe qué usas tú; para eso están el buscador y <a href="/mi-lista">Mi lista</a>. Desde el 14 de noviembre de 2026 ya no cuentan las fallas en productos o paquetes que usa poca gente: antes subían el nivel casi a diario.</p>
     <p class="center meta">Los títulos se traducen al español de forma automática. El original se conserva y está en la fuente enlazada.</p>
   </div></section>
 

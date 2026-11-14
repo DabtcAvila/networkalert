@@ -106,9 +106,10 @@ if (matchMedia('(hover: hover)').matches && !reducido) {
 const tira = document.getElementById('tira');
 if (tira) {
   const NOMBRE: Record<string, string> = { normal: 'Normal', elevated: 'Elevado', high: 'Alto' };
-  fetch('/api/v1/status').then((r) => (r.ok ? r.json() : null)).then((j: { status?: { level: string }; generated_at?: string } | null) => {
+  fetch('/api/v1/status').then((r) => (r.ok ? r.json() : null)).then((j: { status?: { level: string; summary?: string }; generated_at?: string } | null) => {
     if (!j?.status) return;
     tira.dataset.nivel = j.status.level;
+    if (j.status.summary) tira.title = j.status.summary;
     const n = document.getElementById('tira-nivel'), h = document.getElementById('tira-hace');
     if (n) n.textContent = NOMBRE[j.status.level] ?? 'Sin dato';
     if (h && j.generated_at) { const m = Math.max(0, Math.round((Date.now() - Date.parse(j.generated_at)) / 60000)); h.textContent = m < 1 ? '· hace un momento' : m < 60 ? `· hace ${m} min` : `· hace ${Math.round(m / 60)} h`; }
