@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Portadilla from '../components/Portadilla.astro';
 import { FUENTES } from '../../ingest/fuentes.mjs';
-const TIPO: Record<string, string> = { alerts: 'Alertas', platform: 'Estado de plataforma', context: 'Contexto', enrichment: 'Enriquecimiento' };
+const TIPO: Record<string, string> = { alerts: 'Alertas', mexico: 'Alertas', platform: 'Estado de plataforma', context: 'Contexto', enrichment: 'Enriquecimiento' };
 const fuentes = FUENTES.filter((f: { kind: string }) => f.kind !== 'platform');
 const plataformas = FUENTES.filter((f: { kind: string }) => f.kind === 'platform');
 ---

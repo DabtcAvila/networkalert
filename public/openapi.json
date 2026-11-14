@@ -755,6 +755,130 @@
      }
     }
    }
+  },
+  "/api/v1/mexico": {
+   "get": {
+    "tags": [
+     "alertas"
+    ],
+    "operationId": "mexico",
+    "summary": "México por proveedor y por estado",
+    "description": "Señales de corte de Internet en México según IODA: diez proveedores de acceso y los 32 estados, más las alertas activas que tocan al país. Por estado y por proveedor la gravedad no pasa de media.",
+    "responses": {
+     "200": {
+      "description": "Estado de México.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "generated_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "country": {
+           "type": [
+            "object",
+            "null"
+           ],
+           "description": "Corte a nivel país, si lo hay."
+          },
+          "mexico": {
+           "type": [
+            "object",
+            "null"
+           ],
+           "properties": {
+            "checked_at": {
+             "type": "string",
+             "format": "date-time"
+            },
+            "providers": {
+             "type": "array",
+             "items": {
+              "type": "object",
+              "properties": {
+               "name": {
+                "type": "string"
+               },
+               "level": {
+                "type": "string",
+                "enum": [
+                 "normal",
+                 "low",
+                 "medium"
+                ],
+                "description": "normal: sin señales; low: caída de 8 % a 25 %; medium: 25 % o más, o dos señales críticas."
+               },
+               "drop_pct": {
+                "type": [
+                 "integer",
+                 "null"
+                ]
+               },
+               "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Gráfica en IODA."
+               }
+              }
+             }
+            },
+            "states": {
+             "type": "array",
+             "items": {
+              "type": "object",
+              "properties": {
+               "name": {
+                "type": "string"
+               },
+               "level": {
+                "type": "string",
+                "enum": [
+                 "normal",
+                 "low",
+                 "medium"
+                ],
+                "description": "normal: sin señales; low: caída de 8 % a 25 %; medium: 25 % o más, o dos señales críticas."
+               },
+               "drop_pct": {
+                "type": [
+                 "integer",
+                 "null"
+                ]
+               },
+               "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Gráfica en IODA."
+               }
+              }
+             }
+            },
+            "affected_providers": {
+             "type": "integer"
+            },
+            "affected_states": {
+             "type": "integer"
+            },
+            "stale": {
+             "type": "boolean"
+            }
+           }
+          },
+          "alerts": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Alerta"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {

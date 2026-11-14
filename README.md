@@ -8,6 +8,7 @@
 |---|---|---|
 | Recolector | `ingest/run.mjs`, `ingest/fuentes.mjs` | Lee las fuentes, normaliza y arma la instantánea. Sin dependencias. Corre en GitHub Actions. |
 | Worker | `worker/index.ts` | API `/api/v1/*`, RSS, JSON Feed, insignia y recepción de la instantánea (KV). |
+| México | `ingest/fuentes.mjs` (`iodaMexico`), `/mexico` | Señales de corte por proveedor de Internet y por estado (IODA), con las alertas que tocan al país. |
 | Archivo | `worker/archivo.ts`, `worker/paginas.ts` | Guarda cada alerta en D1 la primera vez que se ve y sirve su página (`/alerta/<slug>`), el archivo por mes (`/archivo`) y el sitemap de alertas. La portada y `/alertas` salen con las alertas ya escritas en el HTML. |
 | Sitio | `src/` (Astro estático) | Panel, guía, fuentes, metodología, API, apoyar. |
 | Vigía privado | `ingest/vigia.mjs` | Revisa tus propios dominios (lista en `dominios.txt`, fuera del repo). |

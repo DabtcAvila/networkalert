@@ -24,7 +24,7 @@ const vigilar = [
 const filas = [
   { il: 'vuln', t: 'Fallas en ataque', p: 'Las pocas fallas que ya se usan en ataques reales, con la versión que las corrige.', cta: ['Ver fallas', '/alertas?f=vulnerability'] },
   { il: 'servidores', t: '¿Tu sitio o tu proveedor?', p: 'El estado oficial de 25 plataformas: hosting, DNS, pagos y correo.', cta: ['Ver plataformas', '#plataformas'] },
-  { il: 'senal', t: 'Cortes por país', p: 'Si un país pierde conexión, tus visitantes de ahí no llegan. México siempre a la vista.', cta: ['Ver el globo', '#mundo'] },
+  { il: 'senal', t: 'Cortes por país', p: 'Si un país pierde conexión, tus visitantes de ahí no llegan. México, por proveedor y por estado.', cta: ['Ver México', '/mexico'] },
 ] as const;
 const perfiles = [
   { id: 'dev', t: 'Si desarrollas', h: 'Entérate antes que tu cliente', p: 'Busca lo que usas y sabrás en un minuto si te toca.', puntos: ['Buscador por paquete o CVE', 'API sin llave y RSS', 'Insignia para tu README'], cta: ['Ver la API', '/api'] },
@@ -114,7 +114,8 @@ const codigo = [
         <div class="card stack--sm stack rev">
           <p class="eyebrow">México</p>
           <p class="display display--500" id="mx-estado">Consultando…</p>
-          <p class="meta">Solo cortes a nivel país; las fallas locales de un proveedor no aparecen. Compara con <a href="https://radar.cloudflare.com/mx" target="_blank" rel="noopener noreferrer">Cloudflare Radar</a> o <a href="https://ioda.inetintel.cc.gatech.edu/country/MX" target="_blank" rel="noopener noreferrer">IODA</a>.</p>
+          <p><a class="enlace-flecha" href="/mexico">Ver por proveedor y por estado</a></p>
+          <p class="meta">Se miden cortes grandes; la falla de tu módem o de tu colonia no aparece. Compara con <a href="https://radar.cloudflare.com/mx" target="_blank" rel="noopener noreferrer">Cloudflare Radar</a> o <a href="https://ioda.inetintel.cc.gatech.edu/country/MX" target="_blank" rel="noopener noreferrer">IODA</a>.</p>
         </div>
       </div>
     </div>

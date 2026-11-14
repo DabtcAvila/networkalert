@@ -123,41 +123,119 @@ async function certcc() {
 
 /* ------------------------------------------------------------------ Conectividad por país */
 
-// IODA (Georgia Tech): detección de cortes de Internet por país a partir de BGP, sondeo activo y telescopio de red.
-async function ioda() {
-  const ahora = Math.floor(Date.now() / 1000);
-  const j = await pedir(`https://api.ioda.inetintel.cc.gatech.edu/v2/outages/alerts?from=${ahora - 86_400}&until=${ahora}&entityType=country&limit=2000`, { timeout: 30_000 });
-  // La última alerta de cada (país, señal) dice el estado vigente: si no es «normal», la señal sigue caída.
+// IODA (Georgia Tech): detección de cortes de Internet a partir de BGP, sondeo activo y telescopio de red.
+const IODA = 'https://api.ioda.inetintel.cc.gatech.edu/v2';
+const SENAL = { bgp: 'rutas BGP', 'ping-slash24': 'sondeo activo', 'merit-nt': 'telescopio de red', gtr: 'tráfico de Google' };
+// La última alerta de cada (entidad, señal) dice el estado vigente: si no es «normal», la señal sigue caída.
+function senalesIoda(datos) {
   const ultimo = new Map();
-  for (const a of j.data ?? []) {
+  for (const a of datos ?? []) {
     const k = `${a.entity.code}|${a.datasource}`;
     if (!ultimo.has(k) || ultimo.get(k).time < a.time) ultimo.set(k, a);
   }
-  const porPais = new Map();
+  const porEntidad = new Map();
   for (const a of ultimo.values()) {
     if (a.level === 'normal') continue;
-    const p = porPais.get(a.entity.code) ?? { nombre: a.entity.name, senales: [] };
+    const p = porEntidad.get(a.entity.code) ?? { nombre: a.entity.name, senales: [] };
     p.senales.push({ signal: a.datasource, level: a.level, time: a.time, drop: a.historyValue ? Math.round((1 - a.value / a.historyValue) * 100) : null });
-    porPais.set(a.entity.code, p);
+    porEntidad.set(a.entity.code, p);
   }
-  const NOMBRE = { bgp: 'rutas BGP', 'ping-slash24': 'sondeo activo', 'merit-nt': 'telescopio de red', gtr: 'tráfico de Google' };
-  return [...porPais].map(([code, p]) => {
-    const caida = Math.max(0, ...p.senales.map((s) => s.drop ?? 0));
-    const criticas = p.senales.filter((s) => s.level === 'critical').length;
-    // Una sola señal con caída pequeña es ruido frecuente; se publica como informativa y no mueve el nivel global.
-    const severity = criticas >= 2 && caida >= 25 ? 'high' : criticas >= 2 || caida >= 25 ? 'medium' : caida >= 8 ? 'low' : 'info';
+  return porEntidad;
+}
+// Una sola señal con caída pequeña es ruido frecuente; se publica como informativa y no mueve el nivel global.
+function gravedadIoda(senales) {
+  const caida = Math.max(0, ...senales.map((s) => s.drop ?? 0));
+  const criticas = senales.filter((s) => s.level === 'critical').length;
+  return { caida, severity: criticas >= 2 && caida >= 25 ? 'high' : criticas >= 2 || caida >= 25 ? 'medium' : caida >= 8 ? 'low' : 'info' };
+}
+const resumenIoda = (senales) => senales.map((s) => `${SENAL[s.signal] ?? s.signal}${s.drop != null ? ` −${s.drop}%` : ''}`).join(' · ');
+
+// Cortes por país.
+async function ioda() {
+  const ahora = Math.floor(Date.now() / 1000);
+  const j = await pedir(`${IODA}/outages/alerts?from=${ahora - 86_400}&until=${ahora}&entityType=country&limit=2000`, { timeout: 30_000 });
+  return [...senalesIoda(j.data)].map(([code, p]) => {
+    const { caida, severity } = gravedadIoda(p.senales);
     const desde = Math.min(...p.senales.map((s) => s.time));
     return {
       id: `ioda:${code}`,
       source: 'ioda', category: 'connectivity', severity,
       title: `${p.nombre}: señales de corte de Internet`,
-      summary: p.senales.map((s) => `${NOMBRE[s.signal] ?? s.signal}${s.drop != null ? ` −${s.drop}%` : ''}`).join(' · '),
+      summary: resumenIoda(p.senales),
       url: `https://ioda.inetintel.cc.gatech.edu/country/${code}`,
       published: iso(desde * 1000), status: 'active', countries: [code], tags: ['corte'],
       action: `No depende de ti. Si tienes visitantes o servidores en ${p.nombre}, pueden tener lentitud o no poder entrar; la gráfica de la fuente muestra cuándo se recupera.`,
       extra: { signals: p.senales, max_drop_pct: caida },
     };
   });
+}
+
+/* ------------------------------------------------------------------ México: estados y proveedores */
+
+// Los 32 estados, con el código que usa IODA. «Distrito Federal» y «México» se muestran con su nombre actual.
+export const ESTADOS_MX = [
+  ['2563', 'Aguascalientes'], ['2552', 'Baja California'], ['2553', 'Baja California Sur'], ['2568', 'Campeche'], ['2581', 'Chiapas'], ['2555', 'Chihuahua'],
+  ['2573', 'Ciudad de México'], ['2554', 'Coahuila'], ['2564', 'Colima'], ['2556', 'Durango'], ['2577', 'Estado de México'], ['2574', 'Guanajuato'],
+  ['2575', 'Guerrero'], ['2576', 'Hidalgo'], ['2565', 'Jalisco'], ['2566', 'Michoacán'], ['2578', 'Morelos'], ['2567', 'Nayarit'], ['2560', 'Nuevo León'],
+  ['2569', 'Oaxaca'], ['2570', 'Puebla'], ['2579', 'Querétaro'], ['2582', 'Quintana Roo'], ['2561', 'San Luis Potosí'], ['2557', 'Sinaloa'], ['2558', 'Sonora'],
+  ['2571', 'Tabasco'], ['2562', 'Tamaulipas'], ['2572', 'Tlaxcala'], ['2580', 'Veracruz'], ['2583', 'Yucatán'], ['2559', 'Zacatecas'],
+];
+// Proveedores de acceso con más usuarios en México y los sistemas autónomos (redes) con que aparecen en IODA.
+// `legal` es el titular registrado de la red, tal como lo publica IODA.
+export const PROVEEDORES_MX = [
+  { id: 'telmex', name: 'Telmex', legal: 'Uninet', asns: [8151] },
+  { id: 'telcel', name: 'Telcel', legal: 'Radiomóvil Dipsa', asns: [28403] },
+  { id: 'totalplay', name: 'Totalplay', legal: 'Total Play Telecomunicaciones', asns: [22884, 17072] },
+  { id: 'izzi', name: 'izzi', legal: 'Televisión Internacional, Cablevisión y Cablemás', asns: [11888, 28548, 28509] },
+  { id: 'megacable', name: 'Megacable', legal: 'Mega Cable', asns: [13999] },
+  { id: 'att', name: 'AT&T México', legal: 'AT&T Comunicaciones Digitales', asns: [28469] },
+  { id: 'movistar', name: 'Movistar México', legal: 'Pegaso PCS', asns: [7438] },
+  { id: 'axtel', name: 'Axtel', legal: 'Axtel', asns: [6503] },
+  { id: 'alestra', name: 'Alestra', legal: 'Alestra', asns: [11172] },
+  { id: 'altan', name: 'Altán Redes', legal: 'Altán Redes', asns: [265540] },
+];
+
+// Por estado y por proveedor las señales son más ruidosas que por país. Aquí solo cuenta una caída de 8 % o más
+// que se vea en rutas BGP o en sondeo activo (el telescopio de red solo no basta), y la gravedad no pasa de «media»:
+// así un corte regional se ve en México sin mover el nivel global.
+function nivelMx(senales) {
+  const firmes = senales.filter((s) => s.signal !== 'merit-nt');
+  if (!firmes.length) return { level: 'normal', caida: 0 };
+  const { caida, severity } = gravedadIoda(senales);
+  return { level: severity === 'info' ? 'normal' : severity === 'low' ? 'low' : 'medium', caida };
+}
+
+async function iodaMexico() {
+  const ahora = Math.floor(Date.now() / 1000);
+  const consulta = (tipo) => pedir(`${IODA}/outages/alerts?from=${ahora - 86_400}&until=${ahora}&entityType=${tipo}&relatedTo=country/MX&limit=2000`, { timeout: 30_000 });
+  const [regiones, redes] = await Promise.all([consulta('region'), consulta('asn')]);
+  const porEstado = senalesIoda(regiones.data), porRed = senalesIoda(redes.data);
+  const alertas = [];
+  const alerta = (id, titulo, url, senales, nivel, etiqueta, accion, extra) => alertas.push({
+    id, source: 'ioda-mexico', category: 'connectivity', severity: nivel.level, title: titulo, summary: resumenIoda(senales), url,
+    published: iso(Math.min(...senales.map((s) => s.time)) * 1000), status: 'active', countries: ['MX'], tags: ['corte', 'México', etiqueta], action: accion,
+    extra: { signals: senales, max_drop_pct: nivel.caida, ...extra },
+  });
+
+  const states = ESTADOS_MX.map(([code, name]) => {
+    const senales = porEstado.get(code)?.senales ?? [], nivel = nivelMx(senales);
+    const url = `https://ioda.inetintel.cc.gatech.edu/region/${code}`;
+    if (nivel.level !== 'normal') alerta(`ioda:MX:estado:${code}`, `México · ${name}: señales de corte de Internet`, url, senales, nivel, name,
+      `No depende de ti. Si tienes visitantes, clientes o equipos en ${name}, pueden tener lentitud o no poder entrar; la gráfica de la fuente muestra cuándo se recupera.`, { scope: 'state', state: name });
+    return { code, name, level: nivel.level, drop_pct: nivel.level === 'normal' ? null : nivel.caida, url };
+  });
+
+  const providers = PROVEEDORES_MX.map((p) => {
+    // Se toma la red más afectada del proveedor.
+    const redesP = p.asns.map((asn) => { const senales = porRed.get(String(asn))?.senales ?? []; return { asn, senales, nivel: nivelMx(senales) }; });
+    const peor = redesP.sort((a, b) => b.nivel.caida - a.nivel.caida)[0];
+    const url = `https://ioda.inetintel.cc.gatech.edu/asn/${peor.asn}`;
+    if (peor.nivel.level !== 'normal') alerta(`ioda:MX:red:${p.id}`, `México · ${p.name}: señales de corte en su red`, url, peor.senales, peor.nivel, p.name,
+      `No depende de ti. Si tú o tus usuarios se conectan con ${p.name}, puede haber lentitud o cortes; confirma en los avisos del proveedor antes de reiniciar equipos.`, { scope: 'provider', provider: p.id, asn: peor.asn });
+    return { id: p.id, name: p.name, legal: p.legal, asns: p.asns, level: peor.nivel.level, drop_pct: peor.nivel.level === 'normal' ? null : peor.nivel.caida, url };
+  });
+
+  return { alertas, mexico: { checked_at: new Date().toISOString(), states, providers, affected_states: states.filter((e) => e.level !== 'normal').length, affected_providers: providers.filter((e) => e.level !== 'normal').length } };
 }
 
 // Cloudflare Radar: cortes verificados por su equipo (causa, alcance, proveedor). CC BY-NC 4.0. Requiere token gratuito.
@@ -341,6 +419,7 @@ export const FUENTES = [
   { id: 'nodejs-security', name: 'Node.js Security Releases', url: 'https://nodejs.org/en/blog/vulnerability', license: 'MIT', kind: 'alerts', run: nodejs },
   { id: 'cert-cc', name: 'CERT/CC Vulnerability Notes', url: 'https://www.kb.cert.org/vuls/', license: 'Uso con atribución (CMU SEI)', kind: 'alerts', run: certcc },
   { id: 'ioda', name: 'IODA · Internet Outage Detection and Analysis', url: 'https://ioda.inetintel.cc.gatech.edu', license: 'Uso académico y no comercial con atribución (Georgia Tech)', kind: 'alerts', run: ioda },
+  { id: 'ioda-mexico', name: 'IODA · México por estado y por proveedor', url: 'https://ioda.inetintel.cc.gatech.edu/country/MX', license: 'Uso académico y no comercial con atribución (Georgia Tech)', kind: 'mexico', run: iodaMexico },
   { id: 'cloudflare-radar', name: 'Cloudflare Radar · Outage Center', url: 'https://radar.cloudflare.com/outage-center', license: 'CC BY-NC 4.0', kind: 'alerts', run: radar, optional: true },
   ...PLATAFORMAS.map((p) => ({ id: `status-${p.id}`, name: `${p.name} Status`, url: p.base, license: 'Página de estado pública', kind: 'platform', run: () => statuspage(p) })),
   { id: 'status-stripe', name: 'Stripe Status', url: 'https://status.stripe.com', license: 'Página de estado pública', kind: 'platform', run: stripe },

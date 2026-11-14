@@ -9,6 +9,7 @@
  *  GET  /api/v1/platforms           estado de plataformas
  *  GET  /api/v1/sources             catálogo de fuentes con su última lectura
  *  GET  /api/v1/history             historial de funcionamiento por día (lecturas publicadas y atrasos)
+ *  GET  /api/v1/mexico              México por estado y por proveedor, con las alertas que lo tocan
  *  GET  /feed.xml · /feed.json      alertas altas y críticas (RSS 2.0 / JSON Feed 1.1)
  *  GET  /badge.svg                  insignia del nivel actual
  *  POST /api/ingest                 recibe la instantánea del recolector (Bearer NA_INGEST_KEY)
@@ -22,6 +23,7 @@
  *  GET  /archivo · /archivo/AAAA-MM archivo de alertas por mes
  *  GET  /sitemap-alertas.xml        sitemap de las páginas de alertas
  *  GET  / · /alertas                la página estática con las alertas del momento ya escritas en el HTML
+ *  GET  /mexico                     Internet en México: proveedores, estados, alertas y últimos 30 días
  *
  * Convenciones: respuestas planas con procedencia arriba,
  * errores {"detail": …}, CORS abierto para lectura, Cache-Control corto y explícito.
@@ -29,8 +31,8 @@
 import { baja, confirma, solicita, ver, vuelta, type Correo, type Salida } from './avisos';
 import { normaliza, revisar } from './revisar';
 import { aplica, aplicaResumenes, completa, completaResumenes, type IA, type Mapa } from './traducir';
-import { archiva, delMes, paraSitemap, porSlug, slugDe, SLUG_VALIDO, type Guardada } from './archivo';
-import { descripcionDe, ficha, indexable, ldAlerta, listaArchivo, meses, navMeses, nombreMes, reescribe, renglonHoy, sitemap, tarjeta, type Estado } from './paginas';
+import { archiva, delMes, delPais, paraSitemap, porSlug, slugDe, SLUG_VALIDO, type Guardada } from './archivo';
+import { descripcionDe, ficha, horaMx, indexable, ldAlerta, listaArchivo, listaHistorial, meses, navMeses, nombreMes, reescribe, renglonHoy, resumenMexico, sitemap, tablero, tarjeta, type Estado, type Mexico } from './paginas';
 
 interface Env {
   ASSETS: { fetch: typeof fetch };
@@ -71,7 +73,7 @@ const NOTAS = [
 ];
 
 type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; escalated_at?: string; url: string; page?: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
-type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, unknown>; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
+type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: Mexico | null; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
 let memo: { t: number; texto: string; datos: Snapshot } | null = null;
@@ -443,7 +445,29 @@ async function sitemapAlertas(env: Env, ctx: ExecutionContext): Promise<Response
   return res;
 }
 
+// Corte a nivel país: solo la alerta de IODA para México entero. `countries.MX` también cuenta lo regional y lo de un proveedor.
+const corteNacional = (s: Snapshot) => s.alerts.find((a) => a.id === 'ioda:MX' && !a.stale)?.severity;
+
+// México: proveedores y estados de la última lectura, alertas activas que lo tocan y lo archivado en 30 días.
+async function paginaMexico(env: Env, url: URL, s: Snapshot | null): Promise<Response> {
+  const pagina = await base(env, url, '/mexico');
+  if (!s || !pagina.ok) return pagina;
+  const nombre = nombres(s), m = s.mexico ?? null;
+  const activas = s.alerts.filter((a) => a.countries.includes('MX'));
+  const historial = env.DB ? await delPais(env.DB, 'MX').catch(() => []) : [];
+  const html: Record<string, string> = {
+    '#mx-alertas': activas.length ? activas.map((a) => tarjeta(a, nombre)).join('') : '<li class="vacio">Ninguna alerta activa toca a México en este momento.</li>',
+    '#mx-historial': listaHistorial(historial, nombre),
+  };
+  if (m) { html['#mx-proveedores'] = tablero(m.providers); html['#mx-estados'] = tablero(m.states); }
+  return reescribe(pagina, { html, texto: {
+    '#mx-resumen': resumenMexico(m, corteNacional(s)),
+    '#mx-actualizado': m ? `Última lectura: ${horaMx(m.checked_at)}, hora del centro de México${m.stale ? ' · la fuente no respondió en la lectura más reciente' : ''}` : 'Todavía no hay lectura por estado y por proveedor.',
+  } }, 'public, max-age=120');
+}
+
 async function pagina(env: Env, ctx: ExecutionContext, url: URL, ruta: string, snap: { texto: string; datos: Snapshot } | null): Promise<Response | null> {
+  if (ruta === '/mexico') return paginaMexico(env, url, snap?.datos ?? null);
   if (ruta === '/' || ruta === '/alertas') return conAlertas(env, url, ruta, snap);
   if (ruta === '/alerta') return Response.redirect(`${url.origin}/alertas`, 301);
   if (ruta.startsWith('/alerta/')) return paginaAlerta(env, url, ruta.slice('/alerta/'.length), snap?.datos ?? null);
@@ -498,6 +522,7 @@ export default {
       case '/api/v1/alerts': return alertas(s, url.searchParams);
       case '/api/v1/platforms': return json({ ...procedencia(s), platforms: s.platforms });
       case '/api/v1/sources': return json({ ...procedencia(s), sources: s.sources });
+      case '/api/v1/mexico': return json({ ...procedencia(s), country: corteNacional(s) ? { severity: corteNacional(s) } : null, mexico: s.mexico ?? null, alerts: s.alerts.filter((a) => a.countries.includes('MX')) });
       case '/feed.xml': return feedRss(s);
       case '/feed.json': return feedJson(s);
     }

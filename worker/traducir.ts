@@ -10,10 +10,10 @@ const MODELO = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const LOTE = 20, MAX_POR_CORRIDA = 40;
 const LOTE_RESUMENES = 8, MAX_RESUMENES_POR_CORRIDA = 24;
 // Fuentes cuyos títulos ya se arman en español.
-const YA_EN_ESPANOL = new Set(['ioda', 'cloudflare-radar']);
+const YA_EN_ESPANOL = new Set(['ioda', 'ioda-mexico', 'cloudflare-radar']);
 // Fuentes cuyo resumen ya se arma en español (paquete, versiones afectadas y versión corregida).
 // Radar no está aquí: su descripción llega en inglés y sí se traduce.
-const RESUMEN_EN_ESPANOL = new Set(['ioda', 'github-advisories']);
+const RESUMEN_EN_ESPANOL = new Set(['ioda', 'ioda-mexico', 'github-advisories']);
 const SISTEMA = `Traduces al español de México títulos de alertas de seguridad informática y de fallas de servicios de Internet.
 Reglas:
 - Conserva tal cual, sin traducir: nombres de empresas, productos, paquetes y regiones, identificadores (CVE-…, VU#…), versiones y el texto antes de los primeros dos puntos.

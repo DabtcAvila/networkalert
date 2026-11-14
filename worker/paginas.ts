@@ -151,6 +151,29 @@ export function listaArchivo(filas: Renglon[], nombre: Nombres): string {
   }).join('')}</ul></section>`).join('');
 }
 
+/* ------------------------------------------------------------------ México */
+export type Punto = { name: string; level: string; drop_pct: number | null; url: string; legal?: string };
+export type Mexico = { checked_at: string; states: Punto[]; providers: Punto[]; affected_states: number; affected_providers: number; stale?: boolean };
+const IND_MX: Record<string, string> = { normal: 'none', low: 'maintenance', medium: 'minor' };
+const textoNivel = (p: Punto) => (p.level === 'medium' ? `Señales de corte${p.drop_pct ? ` (−${p.drop_pct} %)` : ''}` : p.level === 'low' ? `Caída leve${p.drop_pct ? ` (−${p.drop_pct} %)` : ''}` : 'Sin señales de corte');
+/** Tarjeta de un proveedor o de un estado: mismo marcado que las plataformas de la portada. Lo afectado va primero. */
+export const tablero = (puntos: Punto[]) => [...puntos].sort((a, b) => (a.level === 'normal' ? 1 : 0) - (b.level === 'normal' ? 1 : 0))
+  .map((p) => `<li class="plataforma" data-ind="${IND_MX[p.level] ?? 'none'}"><a href="${esc(https(p.url))}" target="_blank" rel="noopener noreferrer"><span class="punto"></span><strong>${esc(p.name)}</strong><small>${textoNivel(p)}</small></a></li>`).join('');
+const cuantos = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+/** La frase de arriba: qué pasa en México en este momento. `pais` es la severidad del corte a nivel país, si lo hay. */
+export function resumenMexico(m: Mexico | null | undefined, pais: string | undefined): string {
+  if (pais && (ORDEN[pais] ?? 4) <= 2) return `Hay señales de corte de Internet en todo el país (gravedad ${(SEV[pais] ?? '').toLowerCase()}).`;
+  if (!m) return 'Sin cortes a nivel país en las últimas 24 horas.';
+  const partes = [m.affected_providers ? cuantos(m.affected_providers, 'proveedor', 'proveedores') : '', m.affected_states ? cuantos(m.affected_states, 'estado', 'estados') : ''].filter(Boolean);
+  return partes.length ? `Hay señales de corte en ${partes.join(' y ')}.` : 'Sin señales de corte en México en este momento.';
+}
+/** Lista corta de alertas anteriores (página de México). */
+export function listaHistorial(filas: Renglon[], nombre: Nombres): string {
+  if (!filas.length) return '<li class="vacio">Nada registrado todavía. El archivo empezó el 14 de noviembre de 2026.</li>';
+  return filas.map((f) => { const sev = CLAVES[f.sev_max] ?? 'info'; return `<li class="hoy__fila" data-sev="${sev}"><span class="sev">${SEV[sev]}</span><a class="hoy__titulo" href="/alerta/${esc(f.slug)}">${esc(f.titulo)}</a><span class="hoy__meta">${diaUtc(f.primera)} · ${esc(nombre(f.fuente))} · ${f.cerrada ? 'terminó' : 'activa'}</span></li>`; }).join('');
+}
+export const horaMx = (iso: string) => fechaHora(iso);
+
 export const navMeses = (actual: string) =>
   meses().map((m) => `<a class="chip chip--chico" href="/archivo/${m}"${m === actual ? ' aria-current="page"' : ''}>${esc(nombreMes(m))}</a>`).join('');
 

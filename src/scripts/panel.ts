@@ -7,7 +7,7 @@ import { leeLista } from './lista-local';
 type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; page?: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
-type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; alerts: Alerta[]; sources: Fuente[] };
+type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: { affected_states: number; affected_providers: number } | null; alerts: Alerta[]; sources: Fuente[] };
 
 const SEV: Record<string, string> = { critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja', info: 'Informativa' };
 const CAT: Record<string, string> = { vulnerability: 'Vulnerabilidad', platform: 'Plataforma', connectivity: 'Conectividad', advisory: 'Aviso' };
@@ -194,8 +194,11 @@ function pintaMapa(s: Snapshot) {
   }
   const mx = $('mx-estado');
   if (mx) {
-    const m = s.countries.MX;
-    mx.textContent = m && ORDEN[m.severity] <= 3 ? `México: señales de corte (${SEV[m.severity].toLowerCase()}).` : 'Sin cortes en las últimas 24 horas.';
+    // Corte a nivel país: solo la alerta de IODA para México entero (lo regional y lo de un proveedor va aparte).
+    const nacional = s.alerts.find((a) => a.id === 'ioda:MX' && !a.stale);
+    const e = s.mexico?.affected_states ?? 0, p = s.mexico?.affected_providers ?? 0;
+    const partes = [p ? `${p} ${p === 1 ? 'proveedor' : 'proveedores'}` : '', e ? `${e} ${e === 1 ? 'estado' : 'estados'}` : ''].filter(Boolean);
+    mx.textContent = nacional && ORDEN[nacional.severity] <= 3 ? `México: señales de corte en todo el país (${SEV[nacional.severity].toLowerCase()}).` : partes.length ? `Señales de corte en ${partes.join(' y ')}.` : 'Sin cortes en las últimas 24 horas.';
   }
 }
 

@@ -1,0 +1,64 @@
+---
+// Internet en México. La parte fija (qué ve esta página y qué no) va aquí; el estado del momento lo escribe el Worker
+// (worker/index.ts → paginaMexico) sobre los elementos con id `mx-…`.
+import Base from '../layouts/Base.astro';
+import { ESTADOS_MX, PROVEEDORES_MX } from '../../ingest/fuentes.mjs';
+const preguntas = [
+  { q: '¿Cómo sé si se cayó Telmex, Totalplay, izzi o Megacable?', a: 'Busca al proveedor en la lista de arriba. Si dice «Señales de corte», su red perdió rutas o dejó de responder a las mediciones en las últimas 24 horas. Si dice «Sin señales de corte» y aun así no tienes Internet, lo más probable es una falla local: tu módem, tu colonia o tu línea.' },
+  { q: 'Mi Internet falla y aquí todo sale normal. ¿Por qué?', a: 'Porque aquí solo se ven fallas grandes, las que afectan a una parte medible de la red de un proveedor o de un estado. Una falla en tu calle, en tu módem o en tu plan no aparece. Reinicia el módem, prueba con datos del celular y revisa los avisos de tu proveedor.' },
+  { q: '¿De dónde salen estos datos?', a: 'De IODA, un proyecto del Instituto de Tecnología de Georgia que mide desde fuera las rutas de Internet (BGP) y la respuesta de las redes, y de Cloudflare Radar, que publica cortes verificados. Network Alert los lee cada 10 minutos y enlaza cada dato a su fuente.' },
+  { q: '¿Qué significa «caída leve» y «señales de corte»?', a: '«Caída leve» es una baja de 8 % a 25 % frente a lo normal. «Señales de corte» es una baja de 25 % o más, o dos mediciones distintas en estado crítico al mismo tiempo. Por debajo de 8 % no se muestra nada, porque suele ser ruido.' },
+  { q: 'Tengo un sitio o una tienda en línea. ¿Para qué me sirve?', a: 'Si un proveedor grande o un estado pierde conexión, tus visitantes de ahí no llegan aunque tu sitio esté bien. Antes de buscar el error en tu servidor, mira aquí si el problema es de la red.' },
+];
+const ld = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: preguntas.map((p) => ({ '@type': 'Question', name: p.q, acceptedAnswer: { '@type': 'Answer', text: p.a } })) };
+---
+<Base title="Internet en México hoy: cortes por proveedor y por estado" description="¿Se cayó Internet en México? Señales de corte en Telmex, Telcel, Totalplay, izzi, Megacable y más, y en los 32 estados. Gratis, con la fuente enlazada y actualizado cada 10 minutos.">
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(ld)} />
+  <section class="banda banda--alertas" aria-labelledby="mx-titulo">
+    <div class="container stack--lg stack">
+      <header class="cabecera-banda">
+        <p class="eyebrow">México · cada 10 minutos</p>
+        <h1 id="mx-titulo" class="display display--600">Internet en México, <em>ahora</em></h1>
+        <p class="lead" id="mx-resumen">Consultando…</p>
+        <p class="meta mono" id="mx-actualizado"></p>
+      </header>
+
+      <div class="stack" aria-labelledby="mx-prov-titulo">
+        <h2 id="mx-prov-titulo" class="display display--500">Proveedores de Internet</h2>
+        <ul class="plataformas" id="mx-proveedores">
+          {PROVEEDORES_MX.map((p: { name: string }) => <li class="plataforma" data-ind="none"><a href="https://ioda.inetintel.cc.gatech.edu/country/MX" target="_blank" rel="noopener noreferrer"><span class="punto"></span><strong>{p.name}</strong><small>Sin dato</small></a></li>)}
+        </ul>
+        <p class="meta">Cada nombre abre la gráfica de su red en IODA. Redes que se miden: {PROVEEDORES_MX.map((p: { name: string; legal: string; asns: number[] }) => `${p.name} (${p.legal}, ${p.asns.map((a) => `AS${a}`).join(' y ')})`).join('; ')}.</p>
+      </div>
+
+      <div class="stack" aria-labelledby="mx-est-titulo">
+        <h2 id="mx-est-titulo" class="display display--500">Por estado</h2>
+        <ul class="plataformas plataformas--chicas" id="mx-estados">
+          {ESTADOS_MX.map(([code, name]: string[]) => <li class="plataforma" data-ind="none"><a href={`https://ioda.inetintel.cc.gatech.edu/region/${code}`} target="_blank" rel="noopener noreferrer"><span class="punto"></span><strong>{name}</strong><small>Sin dato</small></a></li>)}
+        </ul>
+      </div>
+
+      <div class="stack" aria-labelledby="mx-al-titulo">
+        <h2 id="mx-al-titulo" class="display display--500">Alertas que tocan a México</h2>
+        <ul class="alertas" id="mx-alertas"><li class="vacio">Sin dato en este momento. Las alertas activas están en <a href="/alertas?f=mexico">Alertas</a>.</li></ul>
+      </div>
+
+      <div class="stack archivo" aria-labelledby="mx-hist-titulo">
+        <h2 id="mx-hist-titulo" class="display display--500">Últimos 30 días</h2>
+        <ul class="hoy__lista" id="mx-historial"><li class="vacio">Sin dato en este momento.</li></ul>
+        <p class="meta">Todo lo anterior está en el <a href="/archivo">archivo</a>. Los mismos datos, en JSON: <a href="/api/v1/mexico">/api/v1/mexico</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="banda" aria-labelledby="mx-limites-titulo">
+    <div class="container"><div class="prose prose--centro">
+      <h2 id="mx-limites-titulo">Qué ve esta página y qué no</h2>
+      <p><strong>Sí ve</strong> cortes grandes: un proveedor que pierde buena parte de su red, un estado que se queda sin conexión, o el país entero. Se mide desde fuera, comparando contra lo normal de cada red.</p>
+      <p><strong>No ve</strong> fallas locales: tu módem, tu colonia, una torre de celular o la lentitud de un servicio en particular. Tampoco dice la causa. Por estado y por proveedor la gravedad nunca pasa de «media», porque esas mediciones son más ruidosas que las de un país completo.</p>
+      <p>Si una plataforma que usas falla (pagos, hosting, correo), eso está en <a href="/#plataformas">Plataformas</a>. Para comparar: <a href="https://ioda.inetintel.cc.gatech.edu/country/MX" target="_blank" rel="noopener noreferrer">IODA México</a> y <a href="https://radar.cloudflare.com/mx" target="_blank" rel="noopener noreferrer">Cloudflare Radar México</a>. Cómo se califica cada señal: <a href="/metodologia">Metodología</a>.</p>
+      <h2>Preguntas frecuentes</h2>
+      {preguntas.map((p) => <><h3>{p.q}</h3><p>{p.a}</p></>)}
+    </div></div>
+  </section>
+</Base>

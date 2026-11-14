@@ -13,6 +13,7 @@ export const DONAR = { montos: [50, 100, 200, 500], minimo: 20, maximo: 20_000 }
 
 export const NAV = [
   { href: '/alertas', label: 'Alertas' },
+  { href: '/mexico', label: 'México' },
   { href: '/revisar', label: 'Revisa tu dominio' },
   { href: '/mi-lista', label: 'Mi lista' },
   { href: '/guia', label: 'Qué vigilar' },

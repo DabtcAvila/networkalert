@@ -2,7 +2,15 @@
 import Base from '../layouts/Base.astro';
 import Portadilla from '../components/Portadilla.astro';
 // Registro de solo agregar: nunca se edita ni se borra una entrada anterior.
-const correcciones: { fecha: string; decia: string; dice: string; deteccion: string; remedio: string }[] = [];
+const correcciones: { fecha: string; decia: string; dice: string; deteccion: string; remedio: string }[] = [
+  {
+    fecha: '2026-11-14',
+    decia: 'Una falla de Microsoft 365 del 12 de noviembre apareció unos 15 minutos como alerta «alta» y «activa», con el título «Corte: technical problem» y sin país.',
+    dice: 'Es un registro informativo de una falla de plataforma que ya había pasado: «Falla de plataforma: problema técnico».',
+    deteccion: 'revisión propia al activar la fuente Cloudflare Radar',
+    remedio: 'un registro de Radar sin fecha de fin solo cuenta como en curso durante 24 horas, y «alta» queda solo para un país entero sin conexión',
+  },
+];
 ---
 <Base title="Correcciones" description="Registro público de errores propios de Network Alert y cómo se corrigieron.">
   <Portadilla eyebrow="Transparencia" titulo="Correc<em>ciones</em>" lead="Nuestros errores quedan escritos aquí. No se editan ni se borran." ilustracion="correcciones">

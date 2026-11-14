@@ -17,6 +17,7 @@ Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vuln
 - [Alertas](https://networkalert.dev/api/v1/alerts): filtros category, severity, min_severity, source, country, tag, q, since, limit
 - [Plataformas](https://networkalert.dev/api/v1/platforms): estado de hosting, pagos, repositorios y mensajería
 - [Fuentes](https://networkalert.dev/api/v1/sources): catálogo con licencia y última lectura
+- [México](https://networkalert.dev/api/v1/mexico): señales de corte por proveedor de Internet (Telmex, Telcel, Totalplay, izzi, Megacable y otros) y por estado, con las alertas que tocan al país
 - [Historial](https://networkalert.dev/api/v1/history): lecturas publicadas y atrasos por día
 - [Quién lo hace](https://networkalert.dev/quien): autor, financiamiento y cómo se corrigen errores
 - [Revisar un dominio](https://networkalert.dev/api/v1/check?domain=example.com): candado, vencimiento del certificado y del dominio, SPF, DMARC, redirecciones y cabeceras, con hallazgos en lenguaje claro
@@ -25,6 +26,7 @@ Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vuln
 
 ## Páginas
 
+- [Internet en México](https://networkalert.dev/mexico): cortes por proveedor y por estado, alertas activas y últimos 30 días
 - [Archivo de alertas](https://networkalert.dev/archivo): todas las alertas publicadas, por mes, cada una con su página
 - [Qué vigilar](https://networkalert.dev/guia): catorce puntos para quien mantiene sitios
 - [Fuentes y licencias](https://networkalert.dev/fuentes)

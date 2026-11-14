@@ -18,7 +18,7 @@ const MAX_ESCRITURAS = 400;
 
 // Fuentes que reutilizan el mismo identificador en cada episodio (un país con cortes, Stripe degradado):
 // en el archivo cada episodio lleva el día en que empezó, para que uno nuevo no pise al anterior.
-const RECURRENTES = new Set(['ioda', 'status-stripe']);
+const RECURRENTES = new Set(['ioda', 'ioda-mexico', 'status-stripe']);
 // Lo mismo pasa con el grupo de incidentes menores de una plataforma (`status:<plataforma>:varios`).
 export const idArchivo = (a: Pick<Alerta, 'id' | 'source' | 'first_seen'>) => (RECURRENTES.has(a.source) || a.id.endsWith(':varios') ? `${a.id}:${String(a.first_seen).slice(0, 10)}` : a.id);
 /** Parte final de la dirección de la página: /alerta/<slug>. */
@@ -74,6 +74,13 @@ export async function delMes(db: D1Database, mes: string): Promise<Renglon[]> {
   const fin = `${m === 12 ? a + 1 : a}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`;
   return (await db.prepare('SELECT slug, fuente, sev_max, primera, cerrada, titulo FROM alertas WHERE primera >= ?1 AND primera < ?2 AND sev_max <= ?3 ORDER BY primera DESC LIMIT 1500')
     .bind(mes, fin, SEV_INDEXABLE).all<Renglon>()).results ?? [];
+}
+
+/** Alertas de los últimos días que tocaron a un país (para la página de México). Usa el índice por fecha: no recorre todo el archivo. */
+export async function delPais(db: D1Database, pais: string, dias = 30): Promise<Renglon[]> {
+  const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
+  return (await db.prepare('SELECT slug, fuente, sev_max, primera, cerrada, titulo FROM alertas WHERE primera >= ?1 AND paises LIKE ?2 AND sev_max <= 3 ORDER BY primera DESC LIMIT 60')
+    .bind(desde, `%,${pais},%`).all<Renglon>()).results ?? [];
 }
 
 export async function paraSitemap(db: D1Database): Promise<{ slug: string; actualizada: string }[]> {

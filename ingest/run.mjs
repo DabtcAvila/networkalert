@@ -47,6 +47,8 @@ let alertas = [];
 const plataformas = [];
 const fuentes = [];
 let infocon = previa?.context?.infocon ?? null;
+// México por estado y por proveedor. Si la fuente falla se conserva lo último, señalado como no actualizado.
+let mexico = previa?.mexico ? { ...previa.mexico, stale: true } : null;
 
 for (const { f, valor, error, ms } of resultados) {
   const estado = { id: f.id, name: f.name, url: f.url, license: f.license, kind: f.kind, ok: !error, fetched_at: new Date().toISOString(), ms, items: 0 };
@@ -64,6 +66,7 @@ for (const { f, valor, error, ms } of resultados) {
     estado.last_ok_at = estado.fetched_at;
     if (f.kind === 'platform') { plataformas.push(valor.plataforma); alertas.push(...valor.incidentes); estado.items = valor.incidentes.length; }
     else if (f.kind === 'context') { infocon = valor; estado.items = 1; }
+    else if (f.kind === 'mexico') { mexico = valor.mexico; alertas.push(...valor.alertas); estado.items = valor.alertas.length; }
     else { alertas.push(...valor); estado.items = valor.length; }
   }
   fuentes.push(estado);
@@ -129,6 +132,7 @@ const snapshot = {
   context: { infocon },
   platforms: plataformas.sort((a, b) => a.name.localeCompare(b.name)),
   countries: paises,
+  mexico,
   alerts: alertas,
   sources: fuentes.map(({ run, optional, ...s }) => s),
   about: { site: 'https://networkalert.dev', docs: 'https://networkalert.dev/api', license: 'Compilación bajo CC BY 4.0; cada alerta conserva la licencia de su fuente (ver sources[].license).', disclaimer: 'Información para orientar, sin garantía. Verifica siempre en la fuente primaria enlazada.' },
