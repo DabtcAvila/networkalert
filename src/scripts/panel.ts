@@ -4,7 +4,7 @@ import { leeLista } from './lista-local';
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; url: string; published: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
 type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; alerts: Alerta[]; sources: Fuente[] };
@@ -123,7 +123,8 @@ function tarjeta(a: Alerta): HTMLLIElement {
       h('time', { datetime: a.published }, hace(a.published)),
       nuevo && h('span', { class: 'tag tag--nuevo' }, 'Nuevo')),
     h('h3', { class: 'alerta__titulo' }, h('a', { href: enlaceSeguro(a.url), rel: 'noopener noreferrer', target: '_blank', ...(a.title_es ? { title: `Original: ${a.title.trim()}` } : {}) }, a.title_es ?? a.title)),
-    !!a.summary && h('p', { class: 'alerta__resumen' }, a.summary),
+    !!a.summary && h('p', { class: 'alerta__resumen', ...(a.summary_es ? { title: `Original: ${a.summary}` } : {}) }, a.summary_es ?? a.summary),
+    !!a.action && h('p', { class: 'alerta__accion' }, h('strong', {}, 'Qué hacer: '), a.action),
     h('p', { class: 'alerta__pie' }, ...pie));
 }
 
@@ -132,7 +133,7 @@ function pintaAlertas(s: Snapshot) {
   const q = busca.trim().toLowerCase();
   const visibles = s.alerts.filter((a) =>
     (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'mexico' ? a.countries.includes('MX') : filtro === 'lista' ? enLista(a) : a.category === filtro) &&
-    (!q || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
+    (!q || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.summary_es ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
   lista.replaceChildren(...visibles.slice(0, limite).map(tarjeta));
   const vacio = $('alertas-vacio');
   if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'lista' ? (hayLista ? 'Nada activo toca lo que usas. Buena señal.' : 'Aún no marcas lo que usas.') : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : 'Sin alertas en esta categoría.'; }

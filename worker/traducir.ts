@@ -1,15 +1,18 @@
 /**
- * Títulos en español. Las fuentes publican en inglés; aquí se traduce cada título una sola vez con
- * Workers AI (cuota gratuita) y se guarda en KV. El original nunca se pierde: queda en `title`,
- * la traducción va en `title_es`. Si la traducción falla o no pasa las comprobaciones, se deja el original.
+ * Títulos y resúmenes en español. Las fuentes publican en inglés; aquí se traduce cada texto una sola vez con
+ * Workers AI (cuota gratuita) y se guarda en KV. El original nunca se pierde: queda en `title` y `summary`,
+ * la traducción va en `title_es` y `summary_es`. Si la traducción falla o no pasa las comprobaciones, se deja el original.
  */
 export interface IA { run(modelo: string, entrada: unknown): Promise<unknown> }
-type Alerta = { source: string; title: string; title_es?: string };
+type Alerta = { source: string; title: string; title_es?: string; summary?: string; summary_es?: string };
 
 const MODELO = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const LOTE = 20, MAX_POR_CORRIDA = 40;
+const LOTE_RESUMENES = 8, MAX_RESUMENES_POR_CORRIDA = 24;
 // Fuentes cuyos títulos ya se arman en español.
 const YA_EN_ESPANOL = new Set(['ioda', 'cloudflare-radar']);
+// Fuentes cuyo resumen ya se arma en español (paquete, versiones afectadas y versión corregida).
+const RESUMEN_EN_ESPANOL = new Set(['ioda', 'cloudflare-radar', 'github-advisories']);
 const SISTEMA = `Traduces al español de México títulos de alertas de seguridad informática y de fallas de servicios de Internet.
 Reglas:
 - Conserva tal cual, sin traducir: nombres de empresas, productos, paquetes y regiones, identificadores (CVE-…, VU#…), versiones y el texto antes de los primeros dos puntos.
@@ -17,15 +20,30 @@ Reglas:
 - Español claro y directo. «Outage» es «caída»; «degraded performance» es «servicio lento»; «vulnerability» es «falla»; «remote code execution» es «ejecución remota de código».
 - Responde solo con las traducciones, una por línea, cada una con el mismo número al inicio.`;
 
+const SISTEMA_RESUMEN = `Traduces al español de México resúmenes breves de alertas de seguridad informática y de fallas de servicios de Internet.
+Reglas:
+- Conserva tal cual, sin traducir: nombres de empresas, productos, paquetes y regiones, identificadores (CVE-…, VU#…), versiones, números, horas y direcciones web.
+- No agregues ni quites información. No expliques ni des consejos.
+- Conserva las oraciones separadas con punto, como en el original.
+- Español claro y directo, sin tecnicismos innecesarios. «Outage» es «caída»; «degraded performance» es «servicio lento»; «vulnerability» es «falla»; «remote code execution» es «ejecución remota de código»; «we are investigating» es «estamos investigando».
+- Cada resumen va en una sola línea. Responde solo con las traducciones, una por línea, cada una con el mismo número al inicio.`;
+
 export type Mapa = Record<string, string>;
 
 /** Pone `title_es` en cada alerta que ya tenga traducción guardada. Una cadena vacía significa «la traducción no pasó las comprobaciones; se deja el original». */
 export function aplica(alertas: Alerta[], mapa: Mapa) {
   for (const a of alertas) { const es = mapa[a.title]; if (es) a.title_es = es; else delete a.title_es; }
 }
+/** Lo mismo para los resúmenes (`summary_es`). */
+export function aplicaResumenes(alertas: Alerta[], mapa: Mapa) {
+  for (const a of alertas) { const es = a.summary ? mapa[a.summary] : ''; if (es) a.summary_es = es; else delete a.summary_es; }
+}
 
 export const pendientes = (alertas: Alerta[], mapa: Mapa) =>
   [...new Set(alertas.filter((a) => !YA_EN_ESPANOL.has(a.source) && !(a.title in mapa)).map((a) => a.title))].slice(0, MAX_POR_CORRIDA);
+const traducible = (a: Alerta) => !RESUMEN_EN_ESPANOL.has(a.source) && !!a.summary && a.summary.trim().length >= 12;
+export const resumenesPendientes = (alertas: Alerta[], mapa: Mapa) =>
+  [...new Set(alertas.filter((a) => traducible(a) && !(a.summary! in mapa)).map((a) => a.summary!))].slice(0, MAX_RESUMENES_POR_CORRIDA);
 
 // Una traducción se acepta solo si conserva los identificadores y el nombre que va antes de los dos puntos, y no se alarga de más.
 function valida(orig: string, es: string): boolean {
@@ -37,10 +55,19 @@ function valida(orig: string, es: string): boolean {
   return true;
 }
 
-async function lote(ia: IA, titulos: string[]): Promise<Mapa> {
+// Un resumen se acepta solo si conserva identificadores y números de versión, y su largo es razonable.
+function validaResumen(orig: string, es: string): boolean {
+  if (!es || es.length > orig.length * 1.9 + 40 || es.length < orig.length * 0.4) return false;
+  const bajo = es.toLowerCase();
+  for (const id of orig.match(/CVE-\d{4}-\d+|VU#\d+|GHSA-[\w-]+/gi) ?? []) if (!bajo.includes(id.toLowerCase())) return false;
+  for (const v of orig.match(/\d+(?:\.\d+)+/g) ?? []) if (!es.includes(v)) return false;
+  return true;
+}
+
+async function lote(ia: IA, titulos: string[], sistema = SISTEMA, valida_ = valida): Promise<Mapa> {
   const r = (await ia.run(MODELO, {
-    messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: titulos.map((t, i) => `${i + 1}. ${t.trim()}`).join('\n') }],
-    max_tokens: 2048, temperature: 0,
+    messages: [{ role: 'system', content: sistema }, { role: 'user', content: titulos.map((t, i) => `${i + 1}. ${t.replace(/\s+/g, ' ').trim()}`).join('\n') }],
+    max_tokens: 3072, temperature: 0,
   })) as { response?: unknown };
   const texto = typeof r?.response === 'string' ? r.response : '';
   const salida: Mapa = {};
@@ -49,7 +76,7 @@ async function lote(ia: IA, titulos: string[]): Promise<Mapa> {
     if (!m) continue;
     const orig = titulos[Number(m[1]) - 1];
     if (orig === undefined || orig in salida) continue;
-    const pasa = valida(orig.trim(), m[2]);
+    const pasa = valida_(orig.trim(), m[2]);
     if (!pasa) console.warn('traducción descartada:', orig.trim(), '→', m[2]);
     salida[orig] = pasa ? m[2] : '';
   }
@@ -67,6 +94,19 @@ export async function completa(ia: IA, alertas: Alerta[], mapa: Mapa): Promise<b
   for (const m of hechos) for (const [k, v] of Object.entries(m)) { mapa[k] = v; cambio = true; }
   // Se olvidan los títulos que ya no están en la instantánea, para que el mapa no crezca sin límite.
   const vivos = new Set(alertas.map((a) => a.title));
+  for (const k of Object.keys(mapa)) if (!vivos.has(k)) { delete mapa[k]; cambio = true; }
+  return cambio;
+}
+
+/** Lo mismo para los resúmenes: traduce los que falten y olvida los que ya no están. */
+export async function completaResumenes(ia: IA, alertas: Alerta[], mapa: Mapa): Promise<boolean> {
+  const faltan = resumenesPendientes(alertas, mapa);
+  const grupos: string[][] = [];
+  for (let i = 0; i < faltan.length; i += LOTE_RESUMENES) grupos.push(faltan.slice(i, i + LOTE_RESUMENES));
+  const hechos = await Promise.all(grupos.map((g) => lote(ia, g, SISTEMA_RESUMEN, validaResumen).catch(() => ({}) as Mapa)));
+  let cambio = false;
+  for (const m of hechos) for (const [k, v] of Object.entries(m)) { mapa[k] = v; cambio = true; }
+  const vivos = new Set(alertas.map((a) => a.summary).filter(Boolean));
   for (const k of Object.keys(mapa)) if (!vivos.has(k)) { delete mapa[k]; cambio = true; }
   return cambio;
 }

@@ -87,6 +87,7 @@ for (const a of alertas) {
   if (!a.id || !a.title || !a.url || !a.published) continue; // sin fuente enlazada o sin fecha no se publica
   a.first_seen = vistas.get(a.id) ?? ahora;
   a.countries ??= [];
+  if (!a.action) delete a.action;
   a.tags = [...new Set((a.tags ?? []).map(String))].slice(0, 8);
   unicas.set(a.id, a);
 }

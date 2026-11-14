@@ -1,8 +1,11 @@
 /**
  * «Revisa tu dominio»: mira un dominio desde fuera, como lo vería cualquiera, y dice qué atender.
- * Solo hace lecturas normales (la portada, DNS público, RDAP y registros públicos de certificados).
+ * Solo hace lecturas normales (la portada, el candado que presenta el servidor, DNS público, RDAP y registros
+ * públicos de certificados).
  * No guarda el dominio ni el resultado: la respuesta se arma al momento y se cachea unos minutos.
  */
+import { candadoInstalado } from './candado';
+
 export type Nivel = 'urgent' | 'fix' | 'improve' | 'ok';
 export type Hallazgo = { level: Nivel; key: string; title: string; action?: string };
 
@@ -41,32 +44,58 @@ async function dns(nombre: string, tipo: string): Promise<Dns> {
   return { status: j.Status, ad: !!j.AD, datos };
 }
 
+type Rdap = { events?: { eventAction: string; eventDate: string }[]; status?: string[]; entities?: { roles?: string[]; vcardArray?: [string, [string, unknown, string, string][]] }[] };
+// Terminaciones del registro de Google: su RDAP limita las consultas que llegan desde servidores compartidos (responde 429).
+const DE_GOOGLE = new Set(['dev', 'app', 'page', 'new', 'how', 'soy', 'foo', 'day', 'dad', 'phd', 'prof', 'esq', 'mov', 'zip', 'nexus', 'channel', 'boo', 'rsvp', 'ing', 'meme']);
+// RDAP de registradores comunes: responden por los dominios que ellos venden. Se usan solo si el registro no contesta.
+const REGISTRADORES = ['https://rdap.cloudflare.com/rdap/v1/domain/', 'https://rdap.namecheap.com/domain/', 'https://rdap.godaddy.com/v1/domain/', 'https://rdap.porkbun.com/domain/', 'https://rdap.gandi.net/domain/', 'https://rdap.markmonitor.com/rdap/domain/', 'https://opensrs.rdap.tucows.com/domain/', 'https://rdap.dynadot.com/domain/', 'https://rdap.hostinger.com/domain/', 'https://rdap.namesilo.com/domain/', 'https://rdap.ionos.com/domain/', 'https://rdap.ovh.com/domain/'];
+
+async function rdap(url: string, d: string, ms = 8000) {
+  const r = await pide(url, { headers: { accept: 'application/rdap+json' } }, ms);
+  if (!r.ok) { await r.body?.cancel(); throw new Error(`RDAP ${r.status} en ${new URL(r.url || url).hostname}`); }
+  const j = (await r.json()) as Rdap;
+  const vence = (j.events?.find((e) => e.eventAction === 'expiration') ?? j.events?.find((e) => /expiration/.test(e.eventAction)))?.eventDate ?? null;
+  if (!vence || Number.isNaN(Date.parse(vence))) throw new Error('RDAP sin fecha de vencimiento');
+  const registrador = j.entities?.find((e) => e.roles?.includes('registrar'))?.vcardArray?.[1]?.find((v) => v[0] === 'fn')?.[3] ?? null;
+  return { domain: d, expires: vence, registrar: registrador, locked: (j.status ?? []).some((x) => /transfer prohibited/i.test(x)) };
+}
+
 async function registro(dominio: string) {
   // RDAP solo conoce el dominio registrado: si es un subdominio se intenta también con el nivel de arriba.
   const candidatos = [dominio, ...(dominio.split('.').length > 2 ? [dominio.split('.').slice(1).join('.')] : [])];
-  // rdap.org reenvía al registro de cada terminación. Algunos registros (los de .dev y .app) limitan las consultas
-  // desde servidores compartidos; por eso se intenta también con el RDAP de Cloudflare Registrar.
   let ultimo = 'sin RDAP';
-  for (const d of candidatos) for (const base of ['https://rdap.org/domain/', 'https://rdap.cloudflare.com/rdap/v1/domain/']) {
-    const r = await pide(base + d, { headers: { accept: 'application/rdap+json' } }, 8000).catch(() => null);
-    if (!r?.ok) { if (r) { ultimo = `RDAP ${r.status} en ${new URL(r.url).hostname}`; await r.body?.cancel(); } continue; }
-    const j = (await r.json()) as { events?: { eventAction: string; eventDate: string }[]; status?: string[]; entities?: { roles?: string[]; vcardArray?: [string, [string, unknown, string, string][]] }[] };
-    const vence = (j.events?.find((e) => e.eventAction === 'expiration') ?? j.events?.find((e) => /expiration/.test(e.eventAction)))?.eventDate ?? null;
-    if (!vence) continue;
-    const registrador = j.entities?.find((e) => e.roles?.includes('registrar'))?.vcardArray?.[1]?.find((v) => v[0] === 'fn')?.[3] ?? null;
-    return { domain: d, expires: vence, registrar: registrador, locked: (j.status ?? []).some((x) => /transfer prohibited/i.test(x)) };
+  for (const d of candidatos) {
+    // 1. El registro de la terminación (rdap.org reenvía al que corresponde).
+    try { return await rdap('https://rdap.org/domain/' + d, d); } catch (e) { ultimo = String((e as Error).message); }
+    // 2. Un segundo intento directo si el registro de Google limitó la consulta.
+    const google = DE_GOOGLE.has(d.split('.').pop()!);
+    if (google && /RDAP 429/.test(ultimo)) {
+      await new Promise((r) => setTimeout(r, 700));
+      try { return await rdap('https://pubapi.registry.google/rdap/domain/' + d, d); } catch (e) { ultimo = String((e as Error).message); }
+    }
+    // 3. Los registradores: el primero que tenga el dominio responde.
+    const bases = google ? REGISTRADORES : REGISTRADORES.slice(0, 1);
+    try { return await Promise.any(bases.map((b) => rdap(b + d, d, 6000))); } catch { /* ninguno lo tiene */ }
   }
   throw new Error(ultimo);
 }
 
-async function certificado(dominio: string) {
+async function emitido(dominio: string) {
   // Registro público de certificados emitidos (Certificate Transparency). Es el más reciente emitido, no necesariamente el instalado.
   const r = await pide(`https://api.certspotter.com/v1/issuances?domain=${dominio}&include_subdomains=false&expand=dns_names`, {}, 7000);
   if (!r.ok) throw new Error(`CT ${r.status}`);
   const lista = (await r.json()) as { not_after: string; revoked?: boolean; dns_names?: string[] }[];
   const comodin = '*.' + dominio.split('.').slice(1).join('.');
   const vigentes = lista.filter((c) => !c.revoked && (c.dns_names ?? []).some((n) => n === dominio || n === comodin)).map((c) => c.not_after).sort();
-  return { expires: vigentes.pop() ?? null };
+  return vigentes.pop() ?? null;
+}
+
+/** Primero el candado que el servidor presenta de verdad; si no se puede leer, el más reciente emitido según el registro público. */
+async function certificado(dominio: string, directo: boolean): Promise<{ expires: string | null; installed: boolean }> {
+  const [vivo, ct] = await Promise.all([directo ? candadoInstalado(dominio) : null, intenta(() => emitido(dominio))]);
+  if (vivo) return { expires: vivo.expires, installed: true };
+  if (fallo(ct)) throw new Error(ct.error);
+  return { expires: ct, installed: false };
 }
 
 /**
@@ -81,7 +110,7 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
     intenta(async () => { const r = await pide(`https://www.${dominio}/`, { redirect: 'manual' }, 8000); await r.body?.cancel(); return { status: r.status, destino: r.headers.get('location') ?? '' }; }),
     intenta(async () => { const r = await lee(`https://${dominio}/.well-known/security.txt`, {}, 7000); return r.ok && /contact:/i.test((await r.text()).slice(0, 4000)); }),
     intenta(() => dns(dominio, 'A')), intenta(() => dns(dominio, 'TXT')), intenta(() => dns(`_dmarc.${dominio}`, 'TXT')), intenta(() => dns(dominio, 'MX')), intenta(() => dns(dominio, 'CAA')),
-    intenta(() => registro(dominio)), intenta(() => certificado(dominio)),
+    intenta(() => registro(dominio)), intenta(() => certificado(dominio, !propio)),
   ]);
   if (!fallo(a) && a.status === 3) return null; // el dominio no existe
 
@@ -105,7 +134,8 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   // 2. Candado
   if (!fallo(w) && venceCert) {
     const d = dias(venceCert);
-    if (d < 7) pon('urgent', 'cert', `El candado (certificado) vence en ${d} días.`, 'Si no se renueva, los navegadores mostrarán «sitio no seguro». Renuévalo o revisa la renovación automática.');
+    if (d < 0) pon('urgent', 'cert', `El candado (certificado) venció hace ${-d} días.`, 'Los navegadores ya muestran «sitio no seguro». Renuévalo hoy con tu hospedaje.');
+    else if (d < 7) pon('urgent', 'cert', `El candado (certificado) vence en ${d} días.`, 'Si no se renueva, los navegadores mostrarán «sitio no seguro». Renuévalo o revisa la renovación automática.');
     else if (d < 21) pon('fix', 'cert', `El candado (certificado) vence en ${d} días.`, 'Confirma que la renovación automática esté funcionando.');
     else pon('ok', 'cert', `El candado (certificado) vence en ${d} días.`);
   }
@@ -171,7 +201,7 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
     findings: h,
     details: {
       web: fallo(w) ? { error: w.error } : { status: w.status, final_url: w.final },
-      certificate: { expires: venceCert, days_left: venceCert ? dias(venceCert) : null, source: 'Registro público de certificados (Certificate Transparency); es el más reciente emitido.' },
+      certificate: { expires: venceCert, days_left: venceCert ? dias(venceCert) : null, installed: fallo(cert) ? null : cert.installed, source: !fallo(cert) && cert.installed ? 'Leído del candado que el servidor presenta en este momento.' : 'Registro público de certificados (Certificate Transparency): es el más reciente emitido; no se pudo leer el instalado.' },
       registration: fallo(reg) ? { expires: null, error: reg.error } : { expires: reg.expires, days_left: reg.expires ? dias(reg.expires) : null, registrar: reg.registrar, locked: reg.locked },
       email: { receives_mail: recibeCorreo, spf: spf ?? null, dmarc: dm ?? null, dmarc_policy: politica },
       dns: { dnssec: fallo(a) ? null : a.ad, caa: fallo(caa) ? null : caa.datos.length > 0 },

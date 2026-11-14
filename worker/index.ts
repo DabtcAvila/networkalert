@@ -8,6 +8,7 @@
  *  GET  /api/v1/alerts              alertas con filtros
  *  GET  /api/v1/platforms           estado de plataformas
  *  GET  /api/v1/sources             catálogo de fuentes con su última lectura
+ *  GET  /api/v1/history             historial de funcionamiento por día (lecturas publicadas y atrasos)
  *  GET  /feed.xml · /feed.json      alertas altas y críticas (RSS 2.0 / JSON Feed 1.1)
  *  GET  /badge.svg                  insignia del nivel actual
  *  POST /api/ingest                 recibe la instantánea del recolector (Bearer NA_INGEST_KEY)
@@ -23,7 +24,7 @@
  */
 import { baja, confirma, solicita, ver, vuelta, type Correo, type Salida } from './avisos';
 import { normaliza, revisar } from './revisar';
-import { aplica, completa, type IA, type Mapa } from './traducir';
+import { aplica, aplicaResumenes, completa, completaResumenes, type IA, type Mapa } from './traducir';
 
 interface Env {
   ASSETS: { fetch: typeof fetch };
@@ -53,6 +54,7 @@ const VERSION = '1.0.0';
 const SITIO = 'https://networkalert.dev';
 const CLAVE = 'snapshot:v1';
 const CLAVE_TITULOS = 'titulos:es:v1';
+const CLAVE_RESUMENES = 'resumenes:es:v1';
 const CUERPO_MAX = 2 * 1024 * 1024;
 const ORDEN: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 const NOTAS = [
@@ -61,7 +63,7 @@ const NOTAS = [
   'Una alerta con `stale: true` viene de una fuente que falló en la última lectura; se conserva el último dato conocido.',
 ];
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
 type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, unknown>; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
@@ -98,7 +100,7 @@ function alertas(s: Snapshot, q: URLSearchParams): Response {
     (!cat || cat.includes(a.category)) && (!sev || sev.includes(a.severity)) && (!fuente || fuente.includes(a.source)) &&
     (!pais || a.countries.some((c) => pais.includes(c.toLowerCase()))) && (!eti || a.tags.some((t) => eti.includes(t.toLowerCase()))) &&
     (!minSev || ORDEN[a.severity] <= ORDEN[minSev]) && (desde === null || Date.parse(a.first_seen) >= desde) &&
-    (!texto || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.tags.join(' ')} ${JSON.stringify(a.extra ?? {})}`.toLowerCase().includes(texto)));
+    (!texto || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.summary_es ?? ''} ${a.tags.join(' ')} ${JSON.stringify(a.extra ?? {})}`.toLowerCase().includes(texto)));
   return json({ ...procedencia(s), total: todas.length, returned: Math.min(todas.length, limite), alerts: todas.slice(0, limite) });
 }
 
@@ -108,7 +110,7 @@ function feedRss(s: Snapshot): Response {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
 <title>Network Alert · alertas altas y críticas</title><link>${SITIO}</link><atom:link href="${SITIO}/feed.xml" rel="self" type="application/rss+xml"/>
 <description>Vulnerabilidades explotadas, caídas de plataformas y cortes de Internet que pueden afectar tus sitios.</description><language>es-MX</language><lastBuildDate>${new Date(s.generated_at).toUTCString()}</lastBuildDate><ttl>10</ttl>
-${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(a.first_seen).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml(a.summary ?? '')}</description></item>`).join('\n')}
+${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(a.first_seen).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml([a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '))}</description></item>`).join('\n')}
 </channel></rss>`;
   return responde(cuerpo, 'application/rss+xml; charset=utf-8', 'public, max-age=300');
 }
@@ -116,7 +118,7 @@ ${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA
 function feedJson(s: Snapshot): Response {
   const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(b.first_seen) - Date.parse(a.first_seen)).slice(0, 60);
   return responde(JSON.stringify({ version: 'https://jsonfeed.org/version/1.1', title: 'Network Alert · alertas altas y críticas', home_page_url: SITIO, feed_url: `${SITIO}/feed.json`, language: 'es-MX',
-    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: a.summary ?? '', date_published: a.first_seen, tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
+    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: [a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '), date_published: a.first_seen, tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
 }
 
 function insignia(s: Snapshot | null): Response {
@@ -124,6 +126,32 @@ function insignia(s: Snapshot | null): Response {
   const [txt, color] = ({ normal: ['normal', '#2f8f6b'], elevated: ['elevado', '#c98a12'], high: ['alto', '#c8372d'], unknown: ['sin dato', '#6b7480'] } as Record<string, [string, string]>)[n];
   const w = 96 + txt.length * 7;
   return responde(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="20" role="img" aria-label="Network Alert: ${txt}"><rect width="96" height="20" fill="#14132b"/><rect x="96" width="${w - 96}" height="20" fill="${color}"/><g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11"><text x="8" y="14">network alert</text><text x="103" y="14">${txt}</text></g></svg>`, 'image/svg+xml; charset=utf-8', 'public, max-age=300');
+}
+
+// Historial público: una fila por día en D1. Nunca rompe lo que lo llama.
+async function anota(env: Env, campos: { lecturas?: number; con_fallas?: number; revisiones?: number; atrasadas?: number }): Promise<void> {
+  if (!env.DB) return;
+  const v = [campos.lecturas ?? 0, campos.con_fallas ?? 0, campos.revisiones ?? 0, campos.atrasadas ?? 0];
+  try {
+    await env.DB.prepare('INSERT INTO historial (dia, lecturas, con_fallas, revisiones, atrasadas) VALUES (?, ?, ?, ?, ?) ON CONFLICT (dia) DO UPDATE SET lecturas = lecturas + excluded.lecturas, con_fallas = con_fallas + excluded.con_fallas, revisiones = revisiones + excluded.revisiones, atrasadas = atrasadas + excluded.atrasadas')
+      .bind(new Date().toISOString().slice(0, 10), ...v).run();
+  } catch (e) { console.error('historial', String(e)); }
+}
+async function historial(env: Env): Promise<Response> {
+  if (!env.DB) return fallo(503, 'Historial no disponible.');
+  type Fila = { dia: string; lecturas: number; con_fallas: number; revisiones: number; atrasadas: number };
+  let filas: Fila[];
+  try { filas = (await env.DB.prepare('SELECT dia, lecturas, con_fallas, revisiones, atrasadas FROM historial ORDER BY dia DESC LIMIT 90').all<Fila>()).results ?? []; }
+  catch { return fallo(503, 'Historial no disponible.'); }
+  const pct = (bien: number, total: number) => (total ? Math.round((bien / total) * 1000) / 10 : null);
+  const dias = filas.map((f) => ({ date: f.dia, readings: f.lecturas, readings_with_source_failures: f.con_fallas, checks: f.revisiones, checks_late: f.atrasadas, on_time_pct: pct(f.revisiones - f.atrasadas, f.revisiones) }));
+  const t = filas.reduce((a, f) => ({ r: a.r + f.revisiones, l: a.l + f.atrasadas, n: a.n + f.lecturas }), { r: 0, l: 0, n: 0 });
+  return json({
+    source: 'Network Alert (registro propio)', source_url: `${SITIO}/quien`, since: filas.at(-1)?.dia ?? null, days_recorded: filas.length,
+    totals: { readings: t.n, checks: t.r, checks_late: t.l, on_time_pct: pct(t.r - t.l, t.r) },
+    notes: ['Cada 5 minutos se revisa la edad del dato publicado. «Atrasado» es un dato de más de 30 minutos.', 'Se muestran hasta 90 días. Los días van en UTC.'],
+    days: dias,
+  }, 'public, max-age=300');
 }
 
 // Comparación en tiempo constante para la llave del recolector.
@@ -144,15 +172,18 @@ async function ingest(request: Request, env: Env, ctx: ExecutionContext): Promis
   try { s = JSON.parse(texto) as Snapshot; } catch { return fallo(400, 'JSON inválido.'); }
   if (s?.version !== 1 || !Array.isArray(s.alerts) || !Array.isArray(s.sources) || !s.status?.level || Number.isNaN(Date.parse(s.generated_at))) return fallo(422, 'La instantánea no cumple el esquema v1.');
   if (s.alerts.some((a) => !a.id || !a.title || !/^https:\/\//.test(a.url))) return fallo(422, 'Hay alertas sin fuente enlazada.');
-  // Títulos en español: se aplican los ya traducidos y, tras responder, se traducen los nuevos.
-  const mapa = ((await env.NA_KV.get(CLAVE_TITULOS, 'json').catch(() => null)) as Mapa | null) ?? {};
-  aplica(s.alerts, mapa);
+  // Títulos y resúmenes en español: se aplican los ya traducidos y, tras responder, se traducen los nuevos.
+  const [mapa, resumenes] = (await Promise.all([CLAVE_TITULOS, CLAVE_RESUMENES].map((k) => env.NA_KV.get(k, 'json').catch(() => null)))).map((m) => (m as Mapa | null) ?? {});
+  aplica(s.alerts, mapa); aplicaResumenes(s.alerts, resumenes);
   const guarda = async () => { const t = JSON.stringify(s); await env.NA_KV.put(CLAVE, t); memo = { t: Date.now(), texto: t, datos: s }; };
   await guarda();
+  ctx.waitUntil(anota(env, { lecturas: 1, con_fallas: s.sources.some((f) => f.ok === false) ? 1 : 0 }));
   if (env.AI) ctx.waitUntil((async () => {
-    if (!(await completa(env.AI!, s.alerts, mapa))) return;
-    await env.NA_KV.put(CLAVE_TITULOS, JSON.stringify(mapa));
-    aplica(s.alerts, mapa);
+    const [t, r] = await Promise.all([completa(env.AI!, s.alerts, mapa), completaResumenes(env.AI!, s.alerts, resumenes)]);
+    if (!t && !r) return;
+    if (t) await env.NA_KV.put(CLAVE_TITULOS, JSON.stringify(mapa));
+    if (r) await env.NA_KV.put(CLAVE_RESUMENES, JSON.stringify(resumenes));
+    aplica(s.alerts, mapa); aplicaResumenes(s.alerts, resumenes);
     await guarda();
   })().catch((e) => console.error('traducir', String(e))));
   return json({ ok: true, alerts: s.alerts.length, generated_at: s.generated_at }, 'no-store');
@@ -279,10 +310,10 @@ async function revisa(request: Request, env: Env, ctx: ExecutionContext, url: UR
 // corre cada 5 minutos y, si el dato tiene 9 minutos o más, pide a GitHub que ejecute el recolector.
 const REPO = 'DabtcAvila/networkalert';
 async function reloj(env: Env): Promise<void> {
-  if (!env.GH_DISPATCH_TOKEN) return;
   const texto = await env.NA_KV.get(CLAVE);
   const edad = texto ? Date.now() - Date.parse((JSON.parse(texto) as Snapshot).generated_at) : Infinity;
-  if (edad < 9 * 60_000) return;
+  await anota(env, { revisiones: 1, atrasadas: edad > 30 * 60_000 ? 1 : 0 });
+  if (!env.GH_DISPATCH_TOKEN || edad < 9 * 60_000) return;
   const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/recolector.yml/dispatches`, {
     method: 'POST', signal: AbortSignal.timeout(15_000), body: JSON.stringify({ ref: 'main' }),
     headers: { Authorization: `Bearer ${env.GH_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'networkalert-reloj', 'Content-Type': 'application/json' },
@@ -348,6 +379,7 @@ export default {
     if (ruta === '/api/donar/estado') return json({ abierto: mpListo(env), minimo_mxn: DON_MIN, maximo_mxn: DON_MAX, public_key: mpListo(env) ? env.MP_PUBLIC_KEY : null }, 'no-store');
 
     if (ruta === '/api/v1/check') return revisa(request, env, ctx, url);
+    if (ruta === '/api/v1/history') return historial(env);
 
     const snap = await leer(env);
     if (ruta === '/health') {

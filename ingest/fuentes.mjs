@@ -15,6 +15,22 @@ export async function pedir(url, { timeout = 20_000, headers = {}, tipo = 'json'
 const iso = (d) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? null : t.toISOString(); };
 const recorta = (s, n = 320) => { const t = String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
 const desdeHace = (dias) => Date.now() - dias * DIA;
+// Fecha en palabras («4 de diciembre de 2026») para el campo `action`.
+const fechaLarga = (d) => { const t = new Date(`${String(d).slice(0, 10)}T12:00:00Z`); return Number.isNaN(t.getTime()) ? null : new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(t); };
+
+// `action`: qué hacer, en una línea y en español. Solo se arma cuando la fuente da un dato concreto para decirlo
+// (versión corregida, fecha límite, página de estado). Si no lo hay, la alerta va sin `action` en vez de inventarlo.
+function accionPaquetes(paquetes) {
+  if (!paquetes.length) return null;
+  const con = paquetes.filter((v) => v.first_patched_version), sin = paquetes.filter((v) => !v.first_patched_version);
+  const partes = [];
+  const mas = con.length > 3 ? ` y ${con.length - 3} más (ver la fuente)` : '';
+  // Si todos se corrigen en la misma versión, se dice una sola vez.
+  if (con.length > 1 && new Set(con.map((v) => v.first_patched_version)).size === 1) partes.push(`Actualiza ${con.slice(0, 3).map((v) => v.package.name).join(', ')}${mas} a la versión ${con[0].first_patched_version} o posterior.`);
+  else if (con.length) partes.push(`Actualiza ${con.slice(0, 3).map((v) => `${v.package.name} a la versión ${v.first_patched_version} o posterior`).join('; ')}${mas ? `;${mas}` : ''}.`);
+  if (sin.length) partes.push(`${sin.slice(0, 3).map((v) => v.package.name).join(', ')}: todavía no hay versión corregida; revisa en la fuente las medidas temporales.`);
+  return partes.join(' ');
+}
 
 // Lector mínimo de RSS/Atom: basta para título, enlace, fecha y resumen de cada entrada.
 function leerFeed(xml) {
@@ -47,6 +63,7 @@ async function kev() {
     published: iso(v.dateAdded),
     status: 'active',
     tags: ['explotada', v.vendorProject, v.product].filter(Boolean),
+    action: `Instala la corrección que publicó ${v.vendorProject || 'el fabricante'}${v.product && v.product !== v.vendorProject ? ` para ${v.product}` : ''}. Si aún no existe, aplica sus medidas temporales o deja de usar el producto.${fechaLarga(v.dueDate) ? ` CISA da a las agencias de EE. UU. hasta el ${fechaLarga(v.dueDate)} para hacerlo.` : ''}`,
     extra: { cve: v.cveID, ransomware: v.knownRansomwareCampaignUse === 'Known', due: v.dueDate, action: recorta(v.requiredAction, 240), cwes: v.cwes ?? [] },
   }));
 }
@@ -67,6 +84,7 @@ async function ghsa() {
       severity: a.severity === 'critical' ? 'critical' : 'high',
       title: a.summary,
       summary: paquetes.slice(0, 4).map((v) => `${v.package.name} (${v.package.ecosystem}) ${v.vulnerable_version_range ?? ''}${v.first_patched_version ? ` → corregido en ${v.first_patched_version}` : ' → sin parche'}`).join(' · '),
+      action: accionPaquetes(paquetes),
       url: a.html_url,
       published: iso(a.published_at),
       updated: iso(a.updated_at),
@@ -84,7 +102,7 @@ async function nodejs() {
   return leerFeed(xml).filter((e) => Date.parse(e.fecha) >= corte).map((e) => ({
     id: `nodejs:${e.url.split('/').filter(Boolean).pop()}`,
     source: 'nodejs-security', category: 'advisory', severity: 'medium',
-    title: `Node.js: ${e.titulo}`, summary: recorta(e.resumen), url: e.url, published: iso(e.fecha), status: 'active', tags: ['nodejs'], extra: {},
+    title: `Node.js: ${e.titulo}`, summary: recorta(e.resumen), action: 'Actualiza Node.js a la versión más reciente de la línea que usas (la fuente lista las versiones corregidas).', url: e.url, published: iso(e.fecha), status: 'active', tags: ['nodejs'], extra: {},
   }));
 }
 
@@ -184,6 +202,8 @@ export const PLATAFORMAS = [
 
 const IMPACTO = { critical: 'critical', major: 'high', minor: 'medium', maintenance: 'info', none: 'info' };
 
+const ACCION_PLATAFORMA = 'No depende de ti. Sigue el avance en la página de estado del proveedor y, si tus usuarios lo notan, avísales.';
+
 async function statuspage(p) {
   // Las páginas clásicas exponen status + incidents/unresolved (ligeros). Las de nueva generación solo traen
   // summary.json, donde `incidents` ya son los abiertos.
@@ -198,7 +218,7 @@ async function statuspage(p) {
     id: `status:${p.id}:${i.id}`,
     source: `status-${p.id}`, category: 'platform', severity: IMPACTO[i.impact] ?? 'medium',
     title: `${p.name}: ${i.name}`,
-    summary: recorta(i.incident_updates?.[0]?.body ?? ''),
+    summary: recorta(i.incident_updates?.[0]?.body ?? ''), action: ACCION_PLATAFORMA,
     url: i.shortlink || `${p.base}/incidents/${i.id}`,
     published: iso(i.started_at ?? i.created_at), updated: iso(i.updated_at), status: 'active',
     tags: [p.grupo, ...(i.components ?? []).slice(0, 4).map((c) => c.name)], extra: { platform: p.id, phase: i.status, impact: i.impact },
@@ -214,7 +234,7 @@ async function stripe() {
   const plataforma = { id: 'stripe', name: 'Stripe', group: 'pagos', url: 'https://status.stripe.com', indicator, description: j.message ?? '', incidents: caidos.length ? 1 : 0 };
   const incidentes = caidos.length ? [{
     id: `status:stripe:${caidos.map(([k]) => k).join('-')}`, source: 'status-stripe', category: 'platform', severity: IMPACTO[indicator],
-    title: `Stripe: degradación en ${caidos.map(([k]) => k).join(', ')}`, summary: recorta(j.message), url: 'https://status.stripe.com',
+    title: `Stripe: degradación en ${caidos.map(([k]) => k).join(', ')}`, summary: recorta(j.message), action: ACCION_PLATAFORMA, url: 'https://status.stripe.com',
     published: new Date().toISOString(), status: 'active', tags: ['pagos'], extra: { platform: 'stripe' },
   }] : [];
   return { plataforma, incidentes };
@@ -227,7 +247,7 @@ async function gcp() {
   const sev = (i) => (i.severity === 'high' ? 'high' : i.severity === 'medium' ? 'medium' : 'low');
   const incidentes = abiertos.map((i) => ({
     id: `status:gcp:${i.id}`, source: 'status-gcp', category: 'platform', severity: sev(i),
-    title: `Google Cloud: ${recorta(i.external_desc, 140)}`, summary: recorta(i.most_recent_update?.text ?? i.updates?.[0]?.text ?? ''),
+    title: `Google Cloud: ${recorta(i.external_desc, 140)}`, summary: recorta(i.most_recent_update?.text ?? i.updates?.[0]?.text ?? ''), action: ACCION_PLATAFORMA,
     url: `https://status.cloud.google.com/${i.uri ?? ''}`, published: iso(i.begin), updated: iso(i.modified), status: 'active',
     tags: ['infraestructura', ...(i.affected_products ?? []).slice(0, 4).map((x) => x.title)], extra: { platform: 'gcp' },
   }));
@@ -246,7 +266,7 @@ async function aws() {
   const abiertos = [...porServicio.values()].filter((e) => !cerrado(e));
   const incidentes = abiertos.map((e) => ({
     id: `status:aws:${e.id.split('#').pop()}`, source: 'status-aws', category: 'platform', severity: /disruption|outage/i.test(e.titulo) ? 'high' : 'medium',
-    title: `AWS: ${recorta(e.titulo, 160)}`, summary: recorta(e.resumen), url: 'https://health.aws.amazon.com/health/status', published: iso(e.fecha), status: 'active', tags: ['infraestructura'], extra: { platform: 'aws' },
+    title: `AWS: ${recorta(e.titulo, 160)}`, summary: recorta(e.resumen), action: ACCION_PLATAFORMA, url: 'https://health.aws.amazon.com/health/status', published: iso(e.fecha), status: 'active', tags: ['infraestructura'], extra: { platform: 'aws' },
   }));
   const peor = incidentes.some((i) => i.severity === 'high') ? 'major' : incidentes.length ? 'minor' : 'none';
   return { plataforma: { id: 'aws', name: 'AWS', group: 'infraestructura', url: 'https://health.aws.amazon.com/health/status', indicator: peor, description: incidentes.length ? `${incidentes.length} aviso(s) abierto(s) en 24 h` : 'Sin avisos abiertos', incidents: incidentes.length }, incidentes };

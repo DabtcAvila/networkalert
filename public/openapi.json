@@ -652,6 +652,109 @@
      }
     }
    }
+  },
+  "/api/v1/history": {
+   "get": {
+    "tags": [
+     "sistema"
+    ],
+    "operationId": "history",
+    "summary": "Historial de funcionamiento por día",
+    "description": "Registro propio de hasta 90 días: lecturas publicadas y cuántas veces el dato estaba atrasado (más de 30 minutos) al revisarlo cada 5 minutos.",
+    "responses": {
+     "200": {
+      "description": "Historial.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "source": {
+           "type": "string"
+          },
+          "source_url": {
+           "type": "string",
+           "format": "uri"
+          },
+          "since": {
+           "type": [
+            "string",
+            "null"
+           ],
+           "format": "date"
+          },
+          "days_recorded": {
+           "type": "integer"
+          },
+          "totals": {
+           "type": "object",
+           "properties": {
+            "readings": {
+             "type": "integer"
+            },
+            "checks": {
+             "type": "integer"
+            },
+            "checks_late": {
+             "type": "integer"
+            },
+            "on_time_pct": {
+             "type": [
+              "number",
+              "null"
+             ]
+            }
+           }
+          },
+          "notes": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "days": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "date": {
+              "type": "string",
+              "format": "date"
+             },
+             "readings": {
+              "type": "integer"
+             },
+             "readings_with_source_failures": {
+              "type": "integer"
+             },
+             "checks": {
+              "type": "integer"
+             },
+             "checks_late": {
+              "type": "integer"
+             },
+             "on_time_pct": {
+              "type": [
+               "number",
+               "null"
+              ]
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "429": {
+      "$ref": "#/components/responses/Limite"
+     },
+     "503": {
+      "description": "Historial no disponible."
+     }
+    }
+   }
   }
  },
  "components": {
@@ -705,7 +808,16 @@
       "description": "Traducción automática al español. Puede faltar; usa `title` en ese caso."
      },
      "summary": {
-      "type": "string"
+      "type": "string",
+      "description": "Resumen como lo publica la fuente."
+     },
+     "summary_es": {
+      "type": "string",
+      "description": "Traducción automática del resumen al español. Puede faltar; usa `summary` en ese caso."
+     },
+     "action": {
+      "type": "string",
+      "description": "Qué hacer, en una línea y en español. Solo aparece cuando la fuente da un dato concreto (versión corregida, fecha límite o página de estado)."
      },
      "url": {
       "type": "string",

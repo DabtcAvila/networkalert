@@ -1,0 +1,34 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+import { SITE } from '../data/site';
+---
+<Base title="Quién lo hace" description="Quién hace Network Alert, quién lo paga, qué no hace y cómo ha funcionado día por día.">
+  <Portadilla eyebrow="Transparencia" titulo="Quién lo <em>hace</em>" lead="Un proyecto independiente. Sin empresa detrás, sin anuncios y con el código abierto." ilustracion="metodologia">
+    <a class="btn btn--primary" href={`mailto:${SITE.contacto}`}>Escribir</a>
+    <a class="enlace-flecha" href={SITE.repo}>Ver el código</a>
+  </Portadilla>
+  <section class="banda"><div class="container"><div class="prose prose--centro">
+    <h2>Quién</h2>
+    <p>Network Alert es un proyecto independiente, hecho desde México. No es una empresa ni tiene socios, patrocinadores ni inversionistas.</p>
+    <h2>Para qué</h2>
+    <p>Para que quien cuida un sitio o una app sepa en un minuto qué puede afectarle hoy y qué hacer, sin leer diez fuentes en inglés.</p>
+    <h2>Quién lo paga</h2>
+    <p>Recursos propios del proyecto y las <a href="/apoyar">donaciones</a>. Donar no da voz sobre qué alertas aparecen. Nadie paga por aparecer ni por dejar de aparecer.</p>
+    <h2>Qué no hace</h2>
+    <p>No vende datos, no pide cuenta y no muestra publicidad. No sustituye a una auditoría de seguridad: orienta y enlaza a la fuente.</p>
+    <h2>De dónde sale cada dato</h2>
+    <p>De <a href="/fuentes">fuentes públicas</a>, cada una con su enlace y su licencia. Cómo se ordenan y se califican está en la <a href="/metodologia">metodología</a>. Los títulos y resúmenes se traducen de forma automática; el texto original siempre queda disponible.</p>
+    <h2>Si nos equivocamos</h2>
+    <p>Se corrige y queda escrito en <a href="/correcciones">Correcciones</a>, sin borrar lo anterior. Para reportar un error: <a href={`mailto:${SITE.contacto}`}>{SITE.contacto}</a>. Para reportar una falla de seguridad del sitio: <a href={`mailto:${SITE.seguridad}`}>{SITE.seguridad}</a>.</p>
+    <h2>Código y datos abiertos</h2>
+    <p>El <a href={SITE.repo}>código</a> es público (licencia MIT) y la compilación se puede reutilizar citando la fuente (CC BY 4.0), por la <a href="/api">API</a> o el RSS.</p>
+  </div></div></section>
+  <section class="banda tono-noche" id="historial"><div class="container--narrow stack">
+    <h2 class="display display--500 rev">Cómo ha funcionado</h2>
+    <p class="lead rev" id="hist-resumen">Cargando el historial…</p>
+    <ol class="historial rev" id="hist-dias" aria-label="Un cuadro por día, del más antiguo al más reciente"></ol>
+    <p class="meta rev">Cada 5 minutos se revisa la edad del dato publicado. Un cuadro es un día: verde si estuvo al día siempre, ámbar si se atrasó poco, rojo si se atrasó más. «Atrasado» es un dato de más de 30 minutos. También disponible en <a href="/api/v1/history">/api/v1/history</a>.</p>
+  </div></section>
+</Base>
+<script src="../scripts/quien.ts"></script>

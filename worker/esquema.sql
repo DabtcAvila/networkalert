@@ -36,3 +36,12 @@ CREATE TABLE IF NOT EXISTS frenos (
   n INTEGER NOT NULL DEFAULT 0,
   creado TEXT NOT NULL
 );
+
+-- Historial público de funcionamiento: por día, cuántas lecturas se publicaron y cuántas veces el dato estaba atrasado.
+CREATE TABLE IF NOT EXISTS historial (
+  dia TEXT PRIMARY KEY,                 -- AAAA-MM-DD (UTC)
+  lecturas INTEGER NOT NULL DEFAULT 0,  -- instantáneas publicadas
+  con_fallas INTEGER NOT NULL DEFAULT 0,-- de esas, cuántas con alguna fuente que no respondió
+  revisiones INTEGER NOT NULL DEFAULT 0,-- veces que el reloj (cada 5 min) miró la edad del dato
+  atrasadas INTEGER NOT NULL DEFAULT 0  -- de esas, cuántas con el dato de más de 30 minutos
+);
