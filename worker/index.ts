@@ -14,10 +14,14 @@
  *  GET  /api/v1/check?domain=   revisa un dominio desde fuera (certificado, vencimiento, correo, redirecciones)
  *  GET  /api/donar/estado           ¿están abiertas las donaciones?
  *  POST /api/donar                  crea el cobro en Mercado Pago y devuelve el enlace de pago
+ *  POST /api/lista                  pide avisos por correo (o guarda un cambio si trae la llave)
+ *  POST /api/lista/confirmar · /ver · /baja   confirmar, leer y borrar una lista con la llave del correo
+ *  POST /api/lista/vuelta           corre a mano una vuelta de avisos (Bearer NA_INGEST_KEY)
  *
  * Convenciones: respuestas planas con procedencia arriba,
  * errores {"detail": …}, CORS abierto para lectura, Cache-Control corto y explícito.
  */
+import { baja, confirma, solicita, ver, vuelta, type Correo, type Salida } from './avisos';
 import { normaliza, revisar } from './revisar';
 import { aplica, completa, type IA, type Mapa } from './traducir';
 
@@ -35,6 +39,10 @@ interface Env {
   // Donaciones: Access Token de la aplicación de Mercado Pago del titular (`wrangler secret put MP_ACCESS_TOKEN`).
   MP_ACCESS_TOKEN?: string;
   MP_API_BASE?: string;
+  // Avisos por correo de «Mi lista»: base D1, envío de correo y dirección pública del sitio para los enlaces.
+  DB?: D1Database;
+  EMAIL?: Correo;
+  ORIGEN?: string;
 }
 
 const VERSION = '1.0.0';
@@ -208,8 +216,7 @@ async function revisa(request: Request, env: Env, ctx: ExecutionContext, url: UR
     const { success } = await env.LIMITE_REVISAR.limit({ key: request.headers.get('cf-connecting-ip') ?? 'anon' });
     if (!success) return fallo(429, 'Demasiadas revisiones seguidas. Espera un minuto.', { 'Retry-After': '60' });
   }
-  // El propio sitio se lee de sus archivos: un Worker no puede pedirse a sí mismo por la red.
-  const r = await revisar(dominio, dominio === url.hostname ? (u) => env.ASSETS.fetch(new Request(u)) : undefined);
+  const r = await revisar(dominio, propio(env, url.hostname)(dominio));
   if (!r) return fallo(404, `El dominio ${dominio} no existe o no tiene DNS.`);
   const res = json(r, 'public, max-age=600');
   ctx.waitUntil(cache.put(llave, res.clone()).catch(() => {}));
@@ -231,9 +238,44 @@ async function reloj(env: Env): Promise<void> {
   if (!r.ok) console.error('reloj', r.status, (await r.text()).slice(0, 200));
 }
 
+// El propio sitio se lee de sus archivos: un Worker no puede pedirse a sí mismo por la red.
+const propio = (env: Env, host: string) => (dominio: string) => (dominio === host ? (u: string) => env.ASSETS.fetch(new Request(u)) : undefined);
+
+async function avisos(env: Env): Promise<unknown> {
+  const snap = await leer(env);
+  return vuelta(env, snap?.datos.alerts ?? [], propio(env, new URL(env.ORIGEN ?? SITIO).hostname));
+}
+
+// «Mi lista»: todo va por POST con JSON para que la llave nunca quede en una dirección ni en un registro.
+async function lista(request: Request, env: Env, ruta: string, url: URL): Promise<Response> {
+  if (request.method !== 'POST') return fallo(405, 'Método no permitido.', { Allow: 'POST' });
+  const da = (s: Salida) => json(s.cuerpo, 'no-store', s.status);
+  if (ruta === '/api/lista/vuelta') {
+    const dada = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+    if (!env.NA_INGEST_KEY || !dada || !(await llaveValida(dada, env.NA_INGEST_KEY))) return fallo(401, 'No autorizado.');
+    return json(await avisos(env), 'no-store');
+  }
+  if (env.LIMITE_REVISAR) {
+    const { success } = await env.LIMITE_REVISAR.limit({ key: `lista:${request.headers.get('cf-connecting-ip') ?? 'anon'}` });
+    if (!success) return fallo(429, 'Demasiados intentos seguidos. Espera un minuto.', { 'Retry-After': '60' });
+  }
+  let b: Record<string, unknown> = {};
+  try { const t = (await request.text()).slice(0, 8000); if (t && !t.startsWith('List-Unsubscribe')) b = JSON.parse(t); } catch { return fallo(400, 'JSON inválido.'); }
+  // La baja con un clic llega desde el programa de correo, con la llave en la dirección y sin origen.
+  if (ruta === '/api/lista/baja') return da(await baja(env, b?.t ?? url.searchParams.get('t')));
+  if (request.headers.get('origin') !== url.origin) return fallo(403, 'Origen no permitido.');
+  switch (ruta) {
+    case '/api/lista': return da(await solicita(env, b));
+    case '/api/lista/confirmar': return da(await confirma(env, b?.t));
+    case '/api/lista/ver': return da(await ver(env, b?.t));
+  }
+  return fallo(404, 'Ruta no encontrada.');
+}
+
 export default {
   async scheduled(_evento: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(reloj(env).catch((e) => console.error('reloj', String(e))));
+    ctx.waitUntil(avisos(env).catch((e) => console.error('avisos', String(e))));
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -241,6 +283,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...BASE, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Max-Age': '86400' } });
     if (ruta === '/api/ingest') return request.method === 'POST' ? ingest(request, env, ctx) : fallo(405, 'Método no permitido.', { Allow: 'POST' });
+    if (ruta === '/api/lista' || ruta.startsWith('/api/lista/')) return lista(request, env, ruta, url);
     const esDonar = ruta === '/api/donar' && request.method === 'POST';
     if (!esDonar && request.method !== 'GET' && request.method !== 'HEAD') return fallo(405, 'Método no permitido.', { Allow: ruta === '/api/donar' ? 'POST' : 'GET, HEAD, OPTIONS' });
 

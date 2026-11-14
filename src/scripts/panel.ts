@@ -1,3 +1,6 @@
+import { coincide } from '../lib/lista';
+import { leeLista } from './lista-local';
+
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
@@ -72,7 +75,10 @@ function pintaDestacada() {
 let datos: Snapshot | null = null;
 // La landing enlaza aquí con ?f=<filtro> y ?q=<texto>.
 const inicial = new URLSearchParams(location.search);
-let filtro = ['vulnerability', 'platform', 'connectivity', 'advisory', 'mexico'].includes(inicial.get('f') ?? '') ? inicial.get('f')! : 'todo';
+const miLista = leeLista();
+const hayLista = miLista.proveedores.length + miLista.palabras.length > 0;
+const enLista = (a: Alerta) => hayLista && coincide(a, miLista);
+let filtro = ['vulnerability', 'platform', 'connectivity', 'advisory', 'mexico', 'lista'].includes(inicial.get('f') ?? '') ? inicial.get('f')! : 'todo';
 let busca = inicial.get('q') ?? '';
 let limite = 14;
 let ultimaVisita = 0;
@@ -125,11 +131,12 @@ function pintaAlertas(s: Snapshot) {
   const lista = $('lista-alertas'); if (!lista) return;
   const q = busca.trim().toLowerCase();
   const visibles = s.alerts.filter((a) =>
-    (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'mexico' ? a.countries.includes('MX') : a.category === filtro) &&
+    (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'mexico' ? a.countries.includes('MX') : filtro === 'lista' ? enLista(a) : a.category === filtro) &&
     (!q || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
   lista.replaceChildren(...visibles.slice(0, limite).map(tarjeta));
   const vacio = $('alertas-vacio');
-  if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : 'Sin alertas en esta categoría.'; }
+  if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'lista' ? (hayLista ? 'Nada activo toca lo que usas. Buena señal.' : 'Aún no marcas lo que usas.') : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : 'Sin alertas en esta categoría.'; }
+  const ed = $('lista-editar'); if (ed) ed.hidden = filtro !== 'lista';
   const mas = $<HTMLButtonElement>('ver-mas');
   if (mas) { mas.hidden = visibles.length <= limite; mas.textContent = `Ver ${Math.min(20, visibles.length - limite)} más (${visibles.length - limite} restantes)`; }
 }
@@ -138,7 +145,7 @@ function pintaAlertas(s: Snapshot) {
 function pintaCuentas(s: Snapshot) {
   document.querySelectorAll<HTMLElement>('[data-cuenta]').forEach((el) => {
     const k = el.dataset.cuenta!;
-    el.textContent = String(k === 'todo' ? s.alerts.filter((a) => ORDEN[a.severity] <= 2).length : k === 'mexico' ? s.alerts.filter((a) => a.countries.includes('MX')).length : s.counts.by_category[k] ?? 0);
+    el.textContent = k === 'lista' ? (hayLista ? String(s.alerts.filter(enLista).length) : '') : String(k === 'todo' ? s.alerts.filter((a) => ORDEN[a.severity] <= 2).length : k === 'mexico' ? s.alerts.filter((a) => a.countries.includes('MX')).length : s.counts.by_category[k] ?? 0);
   });
 }
 

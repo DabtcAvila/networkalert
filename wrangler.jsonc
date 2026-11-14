@@ -24,6 +24,10 @@
   ],
   // Workers AI (cuota gratuita): traduce los títulos de las alertas al español.
   "ai": { "binding": "AI" },
+  // Avisos por correo de «Mi lista» (ver worker/avisos.ts y worker/esquema.sql).
+  "vars": { "ORIGEN": "https://networkalert.dev" },
+  "d1_databases": [{ "binding": "DB", "database_name": "networkalert", "database_id": "be7007a1-cb78-4c6c-8a01-a0f3a6ffdddc" }],
+  "send_email": [{ "name": "EMAIL" }],
   "env": {
     // Preview: networkalert-preview.<cuenta>.workers.dev, mismo código, sin dominio.
     "preview": {
@@ -45,6 +49,10 @@
         { "name": "LIMITE_REVISAR", "namespace_id": "7104", "simple": { "limit": 12, "period": 60 } }
       ],
       "ai": { "binding": "AI" },
+      // Avisos por correo de «Mi lista» (ver worker/avisos.ts y worker/esquema.sql).
+      "vars": { "ORIGEN": "https://networkalert-preview.davidfernando.workers.dev" },
+      "d1_databases": [{ "binding": "DB", "database_name": "networkalert-preview", "database_id": "5c21bade-152e-49a0-b2fc-1265481d73b6" }],
+      "send_email": [{ "name": "EMAIL" }],
       "observability": { "enabled": true }
     }
   }

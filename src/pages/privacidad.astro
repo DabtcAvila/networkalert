@@ -2,14 +2,14 @@
 import Base from '../layouts/Base.astro';
 import Portadilla from '../components/Portadilla.astro';
 const no = [
-  ['Sin cuentas', 'No hay registro.', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0M4 4l16 16'],
+  ['Sin cuentas', 'No hay registro ni contraseñas.', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0M4 4l16 16'],
   ['Sin cookies', 'Ni propias ni de terceros.', 'M12 21a9 9 0 119-9 4 4 0 01-5-4 4 4 0 01-4-5M9 14h.01M14 16h.01M10 9h.01'],
   ['Visitas anónimas', 'Contamos visitas, no personas.', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
   ['Sin publicidad', 'Nadie paga por aparecer.', 'M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1zM16 9l5 6M21 9l-5 6'],
 ];
 ---
-<Base title="Privacidad" description="Network Alert no usa cookies ni pide registro. Cuenta visitas de forma anónima.">
-  <Portadilla eyebrow="Transparencia" titulo="Tu visita es <em>anónima</em>" lead="Sin cuentas, sin cookies y sin publicidad. Solo contamos visitas, sin datos personales." ilustracion="privacidad" />
+<Base title="Privacidad" description="Network Alert no usa cookies ni pide registro. Cuenta visitas de forma anónima y solo guarda tu correo si pides avisos.">
+  <Portadilla eyebrow="Transparencia" titulo="Tu visita es <em>anónima</em>" lead="Sin cuentas, sin cookies y sin publicidad. Solo guardamos tu correo si pides avisos." ilustracion="privacidad" />
   <section class="tono-noche banda banda--compacta"><div class="container">
     <ul class="rasgos">
       {no.map(([t, p, d]) => <li class="rasgo rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={d} /></svg><h3>{t}</h3><p>{p}</p></li>)}
@@ -17,13 +17,16 @@ const no = [
   </div></section>
   <section class="banda"><div class="container"><div class="prose prose--centro">
     <h2>En tu navegador</h2>
-    <p>Dos datos que no salen de tu equipo: si pausaste la animación y la hora de tu última visita.</p>
+    <p>Datos que no salen de tu equipo: si pausaste la animación, la hora de tu última visita y, si la creas, tu lista de lo que usas. La borras desde <a href="/mi-lista">Mi lista</a>.</p>
     <h2>En el servidor</h2>
     <p>Cloudflare procesa tu IP para servir la página y frenar abusos. No guardamos historial de visitantes.</p>
     <h2>Conteo de visitas</h2>
     <p>Usamos Cloudflare Web Analytics para saber cuántas visitas hay y qué tan rápido carga el sitio. Según Cloudflare, no usa cookies ni identifica personas. No vendemos ni cruzamos ese dato con nada.</p>
     <h2>Revisa tu dominio</h2>
-    <p>No guardamos el dominio que revisas ni el resultado. Para revisarlo consultamos el propio sitio, el DNS de Cloudflare, el registro de dominios (RDAP) y el registro público de certificados (SSLMate). Como toda petición, queda unos días en los registros técnicos de Cloudflare.</p>
+    <p>No guardamos el dominio que revisas ni el resultado, salvo que pidas avisos para ese dominio. Para revisarlo consultamos el propio sitio, el DNS de Cloudflare, el registro de dominios (RDAP) y el registro público de certificados (SSLMate). Como toda petición, queda unos días en los registros técnicos de Cloudflare.</p>
+    <h2>Avisos por correo</h2>
+    <p>Solo si los pides en <a href="/mi-lista">Mi lista</a>. Guardamos tu correo, tu lista (proveedores, herramientas y dominios) y qué te avisamos ya, para no repetirlo. Se usa únicamente para escribirte cuando hay algo que atender. No se comparte ni se vende.</p>
+    <p>Nada se activa hasta que confirmas desde tu correo; una solicitud sin confirmar se borra a las 48 horas. Cada correo trae el enlace para darte de baja, y la baja borra tu correo y tu lista. Los datos están en Cloudflare, que también envía los correos. Para pedir que los borremos escribe a <a href="mailto:contacto@networkalert.dev">contacto@networkalert.dev</a>.</p>
     <h2>Traducción de títulos</h2>
     <p>Los títulos de las alertas se traducen con Workers AI de Cloudflare. Solo se envía el título público de la alerta, nada tuyo.</p>
     <h2>Donaciones</h2>
@@ -32,6 +35,6 @@ const no = [
     <p>Cada fuente tiene su propia política.</p>
     <h2>Contacto</h2>
     <p><a href="mailto:contacto@networkalert.dev">contacto@networkalert.dev</a></p>
-    <p class="meta">Última actualización: 13 de noviembre de 2026. Cambios de ese día: se agregó el conteo anónimo de visitas, la revisión de dominios y la traducción de títulos.</p>
+    <p class="meta">Última actualización: 13 de noviembre de 2026. Cambios de ese día: se agregó el conteo anónimo de visitas, la revisión de dominios, la traducción de títulos y los avisos por correo.</p>
   </div></div></section>
 </Base>

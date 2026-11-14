@@ -7,6 +7,7 @@ const filtros = [
   { k: 'connectivity', t: 'Conectividad' },
   { k: 'advisory', t: 'Avisos' },
   { k: 'mexico', t: 'México' },
+  { k: 'lista', t: 'Mi lista' },
 ];
 ---
 <Base title="Alertas" description="Todas las alertas activas de Network Alert: fallas en ataque, incidentes de plataformas y cortes de Internet, con buscador y filtros.">
@@ -26,6 +27,7 @@ const filtros = [
       </div>
       <ul class="alertas" id="lista-alertas" aria-live="polite"></ul>
       <p class="vacio" id="alertas-vacio" hidden></p>
+      <p class="center" id="lista-editar" hidden><a class="enlace-flecha" href="/mi-lista">Marcar lo que uso</a></p>
       <p class="center"><button class="btn btn--secondary" id="ver-mas" type="button" hidden>Ver más</button></p>
       <p class="meta">Los títulos se traducen de forma automática; el original está en la fuente. Cómo se ordenan: <a href="/metodologia">Metodología</a>.</p>
     </div>

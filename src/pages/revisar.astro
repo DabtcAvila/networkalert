@@ -12,7 +12,7 @@ const revisa = [
 ];
 const noHace = [
   'No entra a tu servidor ni prueba contraseñas.',
-  'No guarda el dominio ni el resultado.',
+  'No guarda el dominio ni el resultado, salvo que pidas avisos.',
   'No reemplaza una auditoría de seguridad.',
   'No ve lo que pasa dentro de tu hospedaje.',
 ];
@@ -47,6 +47,7 @@ const noHace = [
       <ul class="alertas" id="revisar-lista"></ul>
       <p class="cluster">
         <button class="btn btn--secondary btn--small" type="button" id="revisar-copiar">Copiar enlace a este resultado</button>
+        <a class="btn btn--primary btn--small" id="revisar-avisar" href="/mi-lista">Avísame si algo cambia</a>
         <a class="enlace-flecha" id="revisar-json" href="/api">Ver en JSON</a>
       </p>
       <p class="meta" id="revisar-pie"></p>

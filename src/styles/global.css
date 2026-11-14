@@ -966,3 +966,24 @@ a.chip:hover { text-decoration: none; }
 .revisar__cuentas li[data-nivel='urgent'] { --c: var(--sev-critical); } .revisar__cuentas li[data-nivel='fix'] { --c: var(--sev-high); } .revisar__cuentas li[data-nivel='improve'] { --c: var(--sev-low); }
 .revisar__cuentas strong { font-size: var(--fs-500); font-weight: 700; color: var(--c); font-variant-numeric: tabular-nums; }
 .alerta[data-sev='ok'] { --c: var(--sev-ok); }
+
+/* ---------- Mi lista ---------- */
+.lista { display: grid; gap: var(--s-6); padding: var(--s-5); background: #fff; border: 1px solid var(--line); border-radius: var(--radio); box-shadow: var(--sombra); }
+@media (min-width: 640px) { .lista { padding: var(--s-6); } }
+.lista > * { margin: 0; }
+.lista [hidden] { display: none; }
+.lista__grupo { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-3); min-inline-size: 0; }
+.lista__grupo legend { padding: 0 0 var(--s-2); font-size: var(--fs-400); font-weight: 700; color: var(--ink); }
+.lista__grupo legend .meta { font-weight: 400; }
+.lista__campo { display: grid; gap: var(--s-2); }
+.lista__campo .buscador { flex: none; width: 100%; min-height: 48px; border-radius: var(--radio-s); }
+.lista__area { padding-block: var(--s-3); line-height: 1.5; resize: vertical; font-family: var(--font-mono, ui-monospace, monospace); }
+.lista__chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.chip--chico { min-height: 34px; padding: 0 var(--s-3); }
+.lista__activa { padding: var(--s-3) var(--s-4); border-radius: var(--radio-s); background: color-mix(in srgb, var(--sev-ok) 12%, #fff); border: 1px solid color-mix(in srgb, var(--sev-ok) 35%, var(--line)); font-size: var(--fs-200); color: var(--ink); }
+.lista__menores { gap: var(--s-2) var(--s-5); }
+.enlace-boton { background: none; border: 0; padding: 0; font: inherit; font-size: var(--fs-200); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.enlace-boton:hover { color: var(--violeta); }
+.lista__reglas { list-style: none; display: grid; gap: var(--s-2); color: var(--ink-2); font-size: var(--fs-200); }
+.lista__reglas li { padding-left: var(--s-5); position: relative; }
+.lista__reglas li::before { content: '✓'; position: absolute; left: 0; color: var(--sev-ok); font-weight: 700; }

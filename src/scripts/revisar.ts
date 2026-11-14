@@ -30,6 +30,7 @@ function pinta(r: Resultado) {
     if (f.action) li.append(el('p', 'alerta__resumen', f.action));
     return li;
   }));
+  $<HTMLAnchorElement>('revisar-avisar')!.href = `/mi-lista?d=${encodeURIComponent(r.domain)}`;
   $<HTMLAnchorElement>('revisar-json')!.href = `/api/v1/check?domain=${encodeURIComponent(r.domain)}`;
   $('revisar-pie')!.textContent = `Revisado el ${new Date(r.checked_at).toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' })}. Es una orientación con datos públicos, no una auditoría.`;
   $('revisar-resultado')!.hidden = false;

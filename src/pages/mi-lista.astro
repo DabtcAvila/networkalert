@@ -1,0 +1,102 @@
+---
+import Base from '../layouts/Base.astro';
+import Portadilla from '../components/Portadilla.astro';
+import { MAX } from '../lib/lista';
+
+const sugeridas = ['wordpress', 'php', 'node.js', 'next', 'react', 'django', 'laravel', 'nginx', 'apache', 'docker', 'postgresql', 'linux', 'openssh', 'chrome', 'microsoft', 'fortinet'];
+const pasos = [
+  { t: 'Marcas lo que usas', p: 'Proveedores, herramientas y tus dominios.', d: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
+  { t: 'Ves solo eso', p: 'En Alertas aparece el filtro «Mi lista».', d: 'M3 5h18l-7 8v6l-4 2v-8L3 5z' },
+  { t: 'Te escribimos si hace falta', p: 'Solo cuando hay algo que atender. Sin boletines.', d: 'M3 6h18v12H3zM3 7l9 6 9-6' },
+];
+const reglas = [
+  'Tu correo se usa solo para estos avisos.',
+  'Nada se activa hasta que confirmas desde tu correo.',
+  'Cada correo trae el enlace para darte de baja.',
+  'Si te das de baja, borramos tu correo y tu lista.',
+];
+---
+<Base title="Mi lista" description="Marca los proveedores, herramientas y dominios que usas. Ve solo las alertas que te afectan y recibe un correo cuando haya algo que atender. Gratis.">
+  <Portadilla eyebrow="Gratis y sin cuenta" titulo="Solo lo que <em>te afecta</em>" lead="Marca lo que usas. Te mostramos solo eso y, si quieres, te avisamos por correo." ilustracion="guia" />
+
+  <section class="banda" aria-labelledby="lista-titulo"><div class="container fila fila--arriba">
+    <div class="stack">
+      <h2 id="lista-titulo" class="visually-hidden">Tu lista</h2>
+      <noscript><p class="aviso">Esta página necesita JavaScript.</p></noscript>
+
+      <div class="lista stack" id="lista-accion" hidden>
+        <h3 class="display display--500" id="lista-accion-titulo" tabindex="-1"></h3>
+        <p class="ink-2" id="lista-accion-texto"></p>
+        <p><button class="btn btn--primary" type="button" id="lista-accion-boton"></button></p>
+      </div>
+
+      <p class="aviso" id="lista-estado" role="status" hidden></p>
+      <p class="aviso aviso--error" id="lista-error" role="alert" hidden></p>
+
+      <form class="lista stack" id="lista-form" novalidate>
+        <p class="lista__activa" id="lista-activa" hidden>Avisos activos para <strong id="lista-correo-activo"></strong></p>
+
+        <fieldset class="lista__grupo">
+          <legend>1. Tus proveedores</legend>
+          <p class="meta">Donde tienes tu sitio, tu código, tus cobros o tu correo.</p>
+          <div class="lista__chips" id="lista-proveedores"><span class="meta">Cargando…</span></div>
+        </fieldset>
+
+        <fieldset class="lista__grupo">
+          <legend>2. Lo que usas</legend>
+          <label class="lista__campo"><span class="meta">Herramientas, lenguajes o paquetes, separados por comas. Hasta {MAX.palabras}.</span>
+            <input class="buscador" id="lista-palabras" type="text" placeholder="wordpress, next, django" autocomplete="off" autocapitalize="none" spellcheck="false" />
+          </label>
+          <div class="lista__chips" id="lista-sugeridas">
+            {sugeridas.map((s) => <button type="button" class="chip chip--chico" data-palabra={s} aria-pressed="false">{s}</button>)}
+          </div>
+        </fieldset>
+
+        <fieldset class="lista__grupo">
+          <legend>3. Tus dominios</legend>
+          <label class="lista__campo"><span class="meta">Uno por línea, hasta {MAX.dominios}. Los revisamos una vez al día. Necesita tu correo.</span>
+            <textarea class="buscador lista__area" id="lista-dominios" rows="3" placeholder="tudominio.com" autocomplete="off" autocapitalize="none" spellcheck="false"></textarea>
+          </label>
+        </fieldset>
+
+        <fieldset class="lista__grupo" id="lista-correo-caja">
+          <legend>4. Avísame por correo <span class="meta">(opcional)</span></legend>
+          <label class="lista__campo"><span class="meta">Te escribimos solo cuando hay algo que atender. Te pediremos confirmar.</span>
+            <input class="buscador" id="lista-correo" type="email" autocomplete="email" placeholder="tu@correo.com" />
+          </label>
+        </fieldset>
+
+        <p class="cluster">
+          <button class="btn btn--primary" type="submit" id="lista-guardar">Guardar mi lista</button>
+          <a class="enlace-flecha" href="/alertas?f=lista">Ver mis alertas</a>
+        </p>
+        <p class="cluster lista__menores">
+          <button class="enlace-boton" type="button" id="lista-baja" hidden>Darme de baja de los correos</button>
+          <button class="enlace-boton" type="button" id="lista-vaciar">Borrar mi lista de este navegador</button>
+        </p>
+      </form>
+    </div>
+
+    <div class="stack--lg stack">
+      <div class="stack rev">
+        <h2 class="display display--500">Cómo funciona</h2>
+        <ul class="usos">
+          {pasos.map((x) => <li><strong>{x.t}.</strong> {x.p}</li>)}
+        </ul>
+      </div>
+      <div class="card stack--sm stack rev">
+        <h3>Qué correos llegan</h3>
+        <p class="ink-2">De tus dominios: una primera revisión y después solo lo nuevo, como un candado o un dominio por vencer. De lo que usas: alertas altas o críticas. Nada más.</p>
+      </div>
+      <div class="card stack--sm stack rev">
+        <h3>Tu correo</h3>
+        <ul class="lista__reglas">{reglas.map((r) => <li>{r}</li>)}</ul>
+        <p class="meta"><a href="/privacidad">Privacidad</a></p>
+      </div>
+    </div>
+  </div></section>
+</Base>
+
+<script>
+  import '../scripts/mi-lista';
+</script>
