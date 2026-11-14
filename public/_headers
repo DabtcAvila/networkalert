@@ -7,6 +7,11 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 
+# Apoyar: misma política, más los orígenes del procesador de pagos (campos cifrados de la tarjeta y antifraude).
+/apoyar
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://sdk.mercadopago.com https://www.mercadopago.com https://http2.mlstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.mercadopago.com https://http2.mlstatic.com; connect-src 'self' https://cloudflareinsights.com https://api.mercadopago.com https://*.mercadopago.com https://*.mercadolibre.com; frame-src https://*.mercadopago.com https://*.mercadolibre.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+
 /llms.txt
   ! Content-Type
   Content-Type: text/plain; charset=utf-8

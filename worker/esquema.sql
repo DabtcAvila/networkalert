@@ -29,3 +29,10 @@ CREATE TABLE IF NOT EXISTS dominios (
   revisado TEXT,                      -- última revisión
   dudas INTEGER NOT NULL DEFAULT 0    -- revisiones seguidas en que el sitio no abrió (se avisa a la segunda)
 );
+
+-- Frenos contra abuso del cobro de donaciones: solo contadores (por huella del día y por hora), sin datos personales.
+CREATE TABLE IF NOT EXISTS frenos (
+  clave TEXT PRIMARY KEY,
+  n INTEGER NOT NULL DEFAULT 0,
+  creado TEXT NOT NULL
+);

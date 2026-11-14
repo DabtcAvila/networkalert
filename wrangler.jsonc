@@ -20,12 +20,14 @@
   "kv_namespaces": [{ "binding": "NA_KV", "id": "af05eed469d5456daf6b33b8899e0cc8" }],
   "ratelimits": [
     { "name": "LIMITE", "namespace_id": "7101", "simple": { "limit": 120, "period": 60 } },
-    { "name": "LIMITE_REVISAR", "namespace_id": "7103", "simple": { "limit": 12, "period": 60 } }
+    { "name": "LIMITE_REVISAR", "namespace_id": "7103", "simple": { "limit": 12, "period": 60 } },
+    { "name": "LIMITE_DONAR", "namespace_id": "7105", "simple": { "limit": 4, "period": 60 } }
   ],
   // Workers AI (cuota gratuita): traduce los títulos de las alertas al español.
   "ai": { "binding": "AI" },
   // Avisos por correo de «Mi lista» (ver worker/avisos.ts y worker/esquema.sql).
-  "vars": { "ORIGEN": "https://networkalert.dev" },
+  // MP_PUBLIC_KEY: llave pública del cobro de donaciones (va al navegador). El Access Token va con `wrangler secret put MP_ACCESS_TOKEN`.
+  "vars": { "ORIGEN": "https://networkalert.dev", "MP_PUBLIC_KEY": "APP_USR-7b5d2179-07cf-4c00-9158-5670ab983bb9" },
   "d1_databases": [{ "binding": "DB", "database_name": "networkalert", "database_id": "be7007a1-cb78-4c6c-8a01-a0f3a6ffdddc" }],
   "send_email": [{ "name": "EMAIL" }],
   "env": {
@@ -46,11 +48,12 @@
       "kv_namespaces": [{ "binding": "NA_KV", "id": "161767bc071e4fee8f0a0bb31e5fa05e" }],
       "ratelimits": [
         { "name": "LIMITE", "namespace_id": "7102", "simple": { "limit": 120, "period": 60 } },
-        { "name": "LIMITE_REVISAR", "namespace_id": "7104", "simple": { "limit": 12, "period": 60 } }
+        { "name": "LIMITE_REVISAR", "namespace_id": "7104", "simple": { "limit": 12, "period": 60 } },
+        { "name": "LIMITE_DONAR", "namespace_id": "7106", "simple": { "limit": 4, "period": 60 } }
       ],
       "ai": { "binding": "AI" },
       // Avisos por correo de «Mi lista» (ver worker/avisos.ts y worker/esquema.sql).
-      "vars": { "ORIGEN": "https://networkalert-preview.davidfernando.workers.dev" },
+      "vars": { "ORIGEN": "https://networkalert-preview.davidfernando.workers.dev", "MP_PUBLIC_KEY": "APP_USR-7b5d2179-07cf-4c00-9158-5670ab983bb9" },
       "d1_databases": [{ "binding": "DB", "database_name": "networkalert-preview", "database_id": "5c21bade-152e-49a0-b2fc-1265481d73b6" }],
       "send_email": [{ "name": "EMAIL" }],
       "observability": { "enabled": true }

@@ -425,6 +425,13 @@ button.monto { font: inherit; cursor: pointer; width: 100%; }
 .donar__campo .buscador { flex: none; width: 100%; max-width: 340px; min-height: 48px; border-radius: var(--radio-s); font-weight: 400; }
 .donar__campo small { font-weight: 400; }
 .donar [hidden] { display: none; }
+.donar__pago { display: grid; gap: var(--s-4); max-width: 420px; }
+.donar__pago .buscador { max-width: none; }
+.donar__par { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+.tarjeta { height: 48px; padding: 0 var(--s-4); background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radio-s); transition: border-color 0.2s, box-shadow 0.2s; }
+.tarjeta:focus-within, .tarjeta.es-foco { border-color: var(--violeta); box-shadow: 0 0 0 3px rgb(91 61 245 / 0.18); }
+.tarjeta.es-error { border-color: var(--sev-critical); }
+.donar__hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
 /* ---------- Encabezado de sección centrado ---------- */
 .cabecera-banda--centro { margin-inline: auto; text-align: center; justify-items: center; max-width: 900px; }

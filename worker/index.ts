@@ -13,7 +13,7 @@
  *  POST /api/ingest                 recibe la instantánea del recolector (Bearer NA_INGEST_KEY)
  *  GET  /api/v1/check?domain=   revisa un dominio desde fuera (certificado, vencimiento, correo, redirecciones)
  *  GET  /api/donar/estado           ¿están abiertas las donaciones?
- *  POST /api/donar                  crea el cobro en Mercado Pago y devuelve el enlace de pago
+ *  POST /api/donar                  cobra la donación con el token de la tarjeta (formulario propio en /apoyar)
  *  POST /api/lista                  pide avisos por correo (o guarda un cambio si trae la llave)
  *  POST /api/lista/confirmar · /ver · /baja   confirmar, leer y borrar una lista con la llave del correo
  *  POST /api/lista/vuelta           corre a mano una vuelta de avisos (Bearer NA_INGEST_KEY)
@@ -38,7 +38,11 @@ interface Env {
   GH_DISPATCH_TOKEN?: string;
   // Donaciones: Access Token de la aplicación de Mercado Pago del titular (`wrangler secret put MP_ACCESS_TOKEN`).
   MP_ACCESS_TOKEN?: string;
+  // Public Key de la misma aplicación: va al navegador para cifrar la tarjeta. Es pública (variable en wrangler.jsonc).
+  MP_PUBLIC_KEY?: string;
   MP_API_BASE?: string;
+  // Límite propio del cobro: pocos intentos por minuto y conexión.
+  LIMITE_DONAR?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   // Avisos por correo de «Mi lista»: base D1, envío de correo y dirección pública del sitio para los enlaces.
   DB?: D1Database;
   EMAIL?: Correo;
@@ -155,52 +159,100 @@ async function ingest(request: Request, env: Env, ctx: ExecutionContext): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Donaciones con Mercado Pago: sin SDK, la persona paga en la página
-// de Mercado Pago, aquí nunca pasa ni se guarda un dato de tarjeta. No hay nada que registrar: sin base ni webhook.
-//   única   → Checkout Pro (POST /checkout/preferences)
-//   mensual → suscripción sin plan (POST /preapproval), cancelable desde la cuenta de Mercado Pago de quien dona
+// Donaciones: el formulario es nuestro y el cobro lo procesa Mercado Pago por detrás.
+// La tarjeta se cifra en el navegador (Secure Fields) y aquí solo llega un token de un uso; nunca se guarda.
+//   única   → cobro al momento (POST /v1/payments), aprobado o rechazado, sin estados intermedios
+//   mensual → suscripción sin plan con la tarjeta ya autorizada (POST /preapproval)
 // ---------------------------------------------------------------------------
 const DON_MIN = 20, DON_MAX = 20_000;
-const mpListo = (env: Env) => typeof env.MP_ACCESS_TOKEN === 'string' && env.MP_ACCESS_TOKEN.length > 20;
+const DON_INTENTOS_DIA = 6;      // intentos de cobro por conexión y día
+const DON_RECHAZOS_HORA = 15;    // rechazos de todo el sitio en una hora antes de pausar (freno contra prueba de tarjetas robadas)
+const mpListo = (env: Env) => typeof env.MP_ACCESS_TOKEN === 'string' && env.MP_ACCESS_TOKEN.length > 20 && typeof env.MP_PUBLIC_KEY === 'string' && /^(APP_USR|TEST)-[A-Za-z0-9-]{20,}$/.test(env.MP_PUBLIC_KEY);
 
-async function mp(env: Env, ruta: string, cuerpo: unknown): Promise<{ status: number; cuerpo: any }> {
+async function mp(env: Env, ruta: string, cuerpo: unknown, extra: Record<string, string> = {}): Promise<{ status: number; cuerpo: any }> {
   try {
     const r = await fetch((env.MP_API_BASE ?? 'https://api.mercadopago.com').replace(/\/$/, '') + ruta, {
-      method: 'POST', signal: AbortSignal.timeout(15_000), body: JSON.stringify(cuerpo),
-      headers: { Authorization: `Bearer ${env.MP_ACCESS_TOKEN}`, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Idempotency-Key': crypto.randomUUID() },
+      method: 'POST', signal: AbortSignal.timeout(20_000), body: JSON.stringify(cuerpo),
+      headers: { Authorization: `Bearer ${env.MP_ACCESS_TOKEN}`, Accept: 'application/json', 'Content-Type': 'application/json', ...extra },
     });
     return { status: r.status, cuerpo: await r.json().catch(() => null) };
   } catch { return { status: 0, cuerpo: null }; }
 }
 
-async function donar(request: Request, env: Env, origen: string): Promise<Response> {
+// Qué decirle a la persona cuando el banco no aprueba.
+function rechazo(detalle: string): string {
+  const m: Record<string, string> = {
+    cc_rejected_insufficient_amount: 'Tu tarjeta no tiene fondos suficientes.',
+    cc_rejected_bad_filled_security_code: 'El código de seguridad (CVV) no coincide.',
+    cc_rejected_bad_filled_date: 'La fecha de vencimiento no coincide.',
+    cc_rejected_bad_filled_card_number: 'Revisa el número de tarjeta.',
+    cc_rejected_bad_filled_other: 'Revisa los datos de la tarjeta.',
+    cc_rejected_call_for_authorize: 'Tu banco pide que autorices este pago. Llámale y vuelve a intentar.',
+    cc_rejected_card_disabled: 'Tu tarjeta está desactivada. Llama a tu banco para activarla.',
+    cc_rejected_duplicated_payment: 'Ya hiciste un pago por este monto hace un momento.',
+    cc_rejected_high_risk: 'El pago no fue aprobado por seguridad. Prueba con otra tarjeta.',
+    cc_rejected_max_attempts: 'Llegaste al límite de intentos con esta tarjeta. Prueba con otra.',
+  };
+  return m[detalle] ?? 'Tu banco no aprobó el pago. Prueba con otra tarjeta.';
+}
+
+// Frenos en D1 (tabla `frenos`): cuentan intentos sin guardar la IP, solo su huella del día.
+async function suma(env: Env, clave: string): Promise<number> {
+  if (!env.DB) return 0;
+  try {
+    const f = await env.DB.prepare('INSERT INTO frenos (clave, n, creado) VALUES (?, 1, ?) ON CONFLICT (clave) DO UPDATE SET n = n + 1 RETURNING n').bind(clave, new Date().toISOString()).first<{ n: number }>();
+    return f?.n ?? 0;
+  } catch (e) { console.error('frenos', String(e)); return 0; }
+}
+async function cuenta(env: Env, clave: string): Promise<number> {
+  if (!env.DB) return 0;
+  try { return (await env.DB.prepare('SELECT n FROM frenos WHERE clave = ?').bind(clave).first<{ n: number }>())?.n ?? 0; } catch { return 0; }
+}
+
+async function donar(request: Request, env: Env, origen: string, ctx: ExecutionContext): Promise<Response> {
   if (!mpListo(env)) return fallo(503, 'Las donaciones todavía no están abiertas.');
-  // Solo el propio sitio puede pedir un enlace de pago.
+  // Solo el propio sitio puede cobrar.
   if (request.headers.get('origin') !== origen) return fallo(403, 'Origen no permitido.');
-  let b: { monto?: unknown; frecuencia?: unknown; correo?: unknown };
-  try { b = JSON.parse((await request.text()).slice(0, 2000)); } catch { return fallo(400, 'JSON inválido.'); }
+  const ip = request.headers.get('cf-connecting-ip') ?? 'anon';
+  if (env.LIMITE_DONAR && !(await env.LIMITE_DONAR.limit({ key: ip })).success) return fallo(429, 'Demasiados intentos. Espera un minuto.', { 'Retry-After': '60' });
+  let b: { monto?: unknown; frecuencia?: unknown; correo?: unknown; hp?: unknown; pago?: { token?: unknown; payment_method_id?: unknown; issuer_id?: unknown; device_id?: unknown } };
+  try { b = JSON.parse((await request.text()).slice(0, 4000)); } catch { return fallo(400, 'JSON inválido.'); }
+  if (typeof b?.hp === 'string' && b.hp) return fallo(400, 'Solicitud inválida.');
   const monto = Number(b?.monto);
   if (!Number.isInteger(monto) || monto < DON_MIN || monto > DON_MAX) return fallo(422, [{ type: 'range', loc: ['body', 'monto'], msg: `Monto entero en pesos, entre ${DON_MIN} y ${DON_MAX}.`, input: b?.monto ?? null }]);
   const mensual = b?.frecuencia === 'mensual';
   if (!mensual && b?.frecuencia !== 'unica') return fallo(422, [{ type: 'enum', loc: ['body', 'frecuencia'], msg: 'Valores: unica, mensual', input: b?.frecuencia ?? null }]);
   const correo = typeof b?.correo === 'string' ? b.correo.trim().toLowerCase() : '';
-  if (mensual && !/^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/.test(correo)) return fallo(422, [{ type: 'email', loc: ['body', 'correo'], msg: 'Para el apoyo mensual Mercado Pago necesita el correo de tu cuenta.', input: null }]);
+  if (correo.length > 254 || !/^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/.test(correo)) return fallo(422, [{ type: 'email', loc: ['body', 'correo'], msg: 'Escribe un correo válido.', input: null }]);
+  const pago = b?.pago ?? {};
+  const token = typeof pago.token === 'string' ? pago.token : '', medio = typeof pago.payment_method_id === 'string' ? pago.payment_method_id : '';
+  if (!/^[A-Za-z0-9]{16,64}$/.test(token) || !/^[a-z0-9_]{2,32}$/.test(medio)) return fallo(400, 'Revisa los datos de tu tarjeta.');
+  const emisor = pago.issuer_id != null && /^[0-9]{1,12}$/.test(String(pago.issuer_id)) ? String(pago.issuer_id) : null;
+  const dispositivo = typeof pago.device_id === 'string' && /^[A-Za-z0-9_:-]{8,128}$/.test(pago.device_id) ? pago.device_id : null;
+
+  // Frenos: tope por conexión y día, y pausa general si se acumulan rechazos en la hora.
+  const ahora = new Date().toISOString(), dia = ahora.slice(0, 10), hora = ahora.slice(0, 13);
+  const huella = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${ip}|${dia}|${env.NA_INGEST_KEY ?? ''}`)))].slice(0, 12).map((x) => x.toString(16).padStart(2, '0')).join('');
+  if ((await cuenta(env, `don:rechazos:${hora}`)) >= DON_RECHAZOS_HORA) return fallo(503, 'Las donaciones están en pausa por un momento. Intenta más tarde.', { 'Retry-After': '3600' });
+  if ((await suma(env, `don:ip:${dia}:${huella}`)) > DON_INTENTOS_DIA) return fallo(429, 'Llegaste al límite de intentos de hoy. Intenta mañana.');
+  if (env.DB) ctx.waitUntil(env.DB.prepare('DELETE FROM frenos WHERE creado < ?').bind(new Date(Date.now() - 2 * 86_400_000).toISOString()).run().then(() => {}, () => {}));
 
   const ref = `NA-DON-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-  const gracias = `${origen}/apoyar/gracias`;
+  const cabeceras = { 'X-Idempotency-Key': `${ref}-${token.slice(0, 16)}`, ...(dispositivo ? { 'X-meli-session-id': dispositivo } : {}) };
   const r = mensual
-    ? await mp(env, '/preapproval', { reason: 'Apoyo mensual a Network Alert', external_reference: ref, payer_email: correo, auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: monto, currency_id: 'MXN' }, back_url: gracias, status: 'pending' })
-    : await mp(env, '/checkout/preferences', {
-        items: [{ id: 'donacion', title: 'Donación a Network Alert', description: 'Donación voluntaria para sostener networkalert.dev', category_id: 'donations', quantity: 1, currency_id: 'MXN', unit_price: monto }],
-        back_urls: { success: gracias, pending: `${gracias}?estado=pendiente`, failure: `${origen}/apoyar?estado=error` }, auto_return: 'approved',
-        external_reference: ref, statement_descriptor: 'NETWORKALERT', payment_methods: { installments: 1, default_installments: 1 },
-      });
-  const enlace = r.cuerpo?.init_point;
-  if (r.status < 200 || r.status >= 300 || typeof enlace !== 'string' || !/^https:\/\//.test(enlace)) {
-    console.error('mp', r.status, JSON.stringify(r.cuerpo)?.slice(0, 300));
-    return fallo(502, 'Mercado Pago no respondió. Intenta de nuevo en un momento.');
-  }
-  return json({ url: enlace, referencia: ref }, 'no-store');
+    ? await mp(env, '/preapproval', { reason: 'Apoyo mensual a Network Alert', external_reference: ref, payer_email: correo, card_token_id: token, auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: monto, currency_id: 'MXN' }, back_url: `${origen}/apoyar/gracias`, status: 'authorized' }, cabeceras)
+    : await mp(env, '/v1/payments', {
+        transaction_amount: monto, token, description: 'Donación a Network Alert', installments: 1, payment_method_id: medio, ...(emisor ? { issuer_id: emisor } : {}),
+        binary_mode: true, capture: true, external_reference: ref, statement_descriptor: 'NETWORKALERT', payer: { email: correo },
+        additional_info: { items: [{ id: 'donacion', title: 'Donación a Network Alert', description: 'Donación voluntaria para sostener networkalert.dev', category_id: 'donations', quantity: 1, unit_price: monto }] },
+      }, cabeceras);
+  const p = r.cuerpo ?? {}, bien = r.status === 200 || r.status === 201;
+  if (bien && p.status === (mensual ? 'authorized' : 'approved')) return json({ ok: true, referencia: ref, monto_mxn: monto, frecuencia: mensual ? 'mensual' : 'unica' }, 'no-store');
+  ctx.waitUntil(suma(env, `don:rechazos:${hora}`));
+  console.error('mp', mensual ? 'mensual' : 'unica', r.status, String(p.status ?? ''), String(p.status_detail ?? p.message ?? '').slice(0, 200));
+  if (bien && typeof p.status === 'string') return fallo(402, rechazo(String(p.status_detail ?? '')));
+  if (r.status >= 400 && r.status < 500) return fallo(mensual ? 402 : 400, mensual ? 'No se pudo activar el apoyo mensual con esa tarjeta. Prueba con otra o dona una vez.' : 'Revisa los datos de tu tarjeta.');
+  return fallo(502, 'No se pudo procesar el pago. No se hizo ningún cargo; intenta de nuevo en un momento.');
 }
 
 // Revisión de un dominio. Se cachea 10 minutos por dominio para no repetir consultas hacia fuera.
@@ -291,9 +343,9 @@ export default {
       const { success } = await env.LIMITE.limit({ key: request.headers.get('cf-connecting-ip') ?? 'anon' });
       if (!success) return fallo(429, 'Rate limit exceeded. Try again later.', { 'Retry-After': '60' });
     }
-    if (esDonar) return donar(request, env, url.origin);
+    if (esDonar) return donar(request, env, url.origin, ctx);
     if (ruta === '/api/donar') return fallo(405, 'Método no permitido.', { Allow: 'POST' });
-    if (ruta === '/api/donar/estado') return json({ abierto: mpListo(env), minimo_mxn: DON_MIN, maximo_mxn: DON_MAX }, 'no-store');
+    if (ruta === '/api/donar/estado') return json({ abierto: mpListo(env), minimo_mxn: DON_MIN, maximo_mxn: DON_MAX, public_key: mpListo(env) ? env.MP_PUBLIC_KEY : null }, 'no-store');
 
     if (ruta === '/api/v1/check') return revisa(request, env, ctx, url);
 

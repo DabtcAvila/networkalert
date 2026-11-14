@@ -8,7 +8,13 @@ import { DONAR } from '../../data/site';
   <section class="banda"><div class="container fila fila--arriba">
     <div class="stack rev">
     <p class="aviso" id="don-cerrado">Las donaciones aún no están abiertas. Vuelve pronto.</p>
-    <p class="aviso aviso--error" id="don-error" role="alert" hidden></p>
+    <div class="donar stack" id="don-gracias" tabindex="-1" hidden>
+      <p class="eyebrow">Donación recibida</p>
+      <h2 class="display display--500">Gracias</h2>
+      <p class="lead" id="don-gracias-texto"></p>
+      <p class="meta" id="don-gracias-ref"></p>
+      <p><a class="btn btn--primary" href="/">Volver al inicio</a></p>
+    </div>
     <form class="donar stack" id="donar" hidden novalidate>
       <fieldset class="donar__grupo">
         <legend class="eyebrow">Frecuencia</legend>
@@ -26,12 +32,33 @@ import { DONAR } from '../../data/site';
           <input class="buscador" id="don-otro" type="number" inputmode="numeric" min={DONAR.minimo} max={DONAR.maximo} step="1" placeholder={`De ${DONAR.minimo} a ${DONAR.maximo.toLocaleString('es-MX')}`} />
         </label>
       </fieldset>
-      <label class="donar__campo" id="don-correo-caja" hidden><span>Correo de tu cuenta de Mercado Pago</span>
-        <input class="buscador" id="don-correo" type="email" autocomplete="email" placeholder="tu@correo.com" />
-        <small class="meta">Mercado Pago lo pide para la suscripción. Cancelas cuando quieras.</small>
-      </label>
-      <p><button class="btn btn--primary" id="don-enviar" type="submit">Donar $100 con Mercado Pago</button></p>
-      <p class="meta">Pagas en Mercado Pago; aquí no vemos tu tarjeta. No es deducible de impuestos.</p>
+      <fieldset class="donar__grupo">
+        <legend class="eyebrow">Tu pago</legend>
+        <p class="meta" id="don-pago-aviso">Preparando el pago seguro…</p>
+        <div class="donar__pago" id="don-pago" hidden>
+          <label class="donar__campo"><span>Correo</span>
+            <input class="buscador" id="don-correo" type="email" autocomplete="email" maxlength="254" placeholder="tu@correo.com" />
+          </label>
+          <div class="donar__campo"><span id="don-numero-et">Número de tarjeta</span>
+            <div class="tarjeta" id="don-numero" role="group" aria-labelledby="don-numero-et"></div>
+          </div>
+          <div class="donar__par">
+            <div class="donar__campo"><span id="don-vence-et">Vencimiento</span>
+              <div class="tarjeta" id="don-vence" role="group" aria-labelledby="don-vence-et"></div>
+            </div>
+            <div class="donar__campo"><span id="don-cvv-et">CVV</span>
+              <div class="tarjeta" id="don-cvv" role="group" aria-labelledby="don-cvv-et"></div>
+            </div>
+          </div>
+          <label class="donar__campo"><span>Nombre como aparece en la tarjeta</span>
+            <input class="buscador" id="don-titular" type="text" autocomplete="cc-name" maxlength="80" />
+          </label>
+          <input class="donar__hp" id="don-hp" type="text" name="empresa" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        </div>
+      </fieldset>
+      <p class="aviso aviso--error" id="don-error" role="alert" tabindex="-1" hidden></p>
+      <p><button class="btn btn--primary" id="don-enviar" type="submit">Donar $100</button></p>
+      <p class="meta" id="don-nota">Tu tarjeta viaja cifrada y no se guarda. En tu estado de cuenta: «NETWORKALERT». No es deducible de impuestos.</p>
     </form>
     </div>
     <div class="stack--lg stack">
