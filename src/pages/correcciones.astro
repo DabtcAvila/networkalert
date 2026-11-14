@@ -5,6 +5,20 @@ import Portadilla from '../components/Portadilla.astro';
 const correcciones: { fecha: string; decia: string; dice: string; deteccion: string; remedio: string }[] = [
   {
     fecha: '2026-11-14',
+    decia: 'Varios títulos traducidos decían «servicio de denegación» en vez de «denegación de servicio», y cuatro alertas pedían instalar la corrección «para Multiple Products», con esas dos palabras en inglés.',
+    dice: '«Denegación de servicio» y «para varios de sus productos». El título original en inglés siempre estuvo visible en cada alerta.',
+    deteccion: 'revisión propia de las 87 alertas publicadas',
+    remedio: 'glosario de traducción corregido, comprobación que descarta esas frases y todos los títulos traducidos de nuevo',
+  },
+  {
+    fecha: '2026-11-14',
+    decia: '27 alertas de fallas en ataque decían «CISA da a las agencias de EE. UU. hasta el…» con una fecha que ya había pasado, como si el plazo siguiera abierto.',
+    dice: 'Cuando la fecha límite ya pasó, la alerta dice que venció y que hay que corregir cuanto antes.',
+    deteccion: 'revisión propia de las 87 alertas publicadas',
+    remedio: 'el texto de «Qué hacer» se arma en cada lectura comparando la fecha límite con el día de hoy',
+  },
+  {
+    fecha: '2026-11-14',
     decia: 'Una falla de Microsoft 365 del 12 de noviembre apareció unos 15 minutos como alerta «alta» y «activa», con el título «Corte: technical problem» y sin país.',
     dice: 'Es un registro informativo de una falla de plataforma que ya había pasado: «Falla de plataforma: problema técnico».',
     deteccion: 'revisión propia al activar la fuente Cloudflare Radar',

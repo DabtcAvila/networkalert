@@ -350,6 +350,8 @@ a.cifra:hover .cifra__n { filter: brightness(0.85); }
 .alerta__pie { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
 .tag { font-family: var(--ff-mono); font-size: 0.6875rem; padding: 3px 8px; background: var(--niebla); border: 1px solid var(--line); border-radius: 6px; color: var(--ink-2); white-space: nowrap; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
 .tag--fuerte { background: var(--c, var(--ink)); border-color: transparent; color: #fff; font-weight: 600; }
+.tag--amplio { background: var(--ink); border-color: transparent; color: var(--paper); font-weight: 600; }
+.tag--nicho { background: transparent; border-style: dashed; color: var(--muted); }
 .tag--nuevo { background: var(--violeta); border-color: transparent; color: #fff; font-weight: 600; }
 .vacio { padding: var(--s-6) 0; color: var(--muted); }
 .aviso { padding: var(--s-4); border: 1px solid color-mix(in srgb, var(--violeta) 25%, var(--line)); border-radius: var(--radio); background: var(--violeta-tinte); font-size: var(--fs-200); color: var(--ink-2); }

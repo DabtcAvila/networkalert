@@ -8,7 +8,7 @@
 // anterior marcadas como `stale` y la fuente queda con ok:false y el error a la vista del público.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { FUENTES, epss } from './fuentes.mjs';
+import { FUENTES, alcance, epss } from './fuentes.mjs';
 
 const ORIGEN = process.env.NA_ORIGEN ?? 'https://networkalert.dev';
 const SALIDA = new URL('../.datos/snapshot.json', import.meta.url);
@@ -27,8 +27,10 @@ function nivel(alertas, plataformas) {
   const activas = alertas.filter((a) => a.status === 'active' && !a.stale);
   const platCrit = plataformas.filter((p) => p.indicator === 'critical').length;
   const platMayor = plataformas.filter((p) => p.indicator === 'major').length;
-  const kev72 = activas.filter((a) => a.source === 'cisa-kev' && reciente(a, 72)).length;
-  const crit72 = activas.filter((a) => a.source === 'github-advisories' && a.severity === 'critical' && reciente(a, 72)).length;
+  // Una alerta que junta varias fallas cuenta por las que junta: agrupar no cambia la fórmula.
+  const suma = (xs) => xs.reduce((n, x) => n + x, 0);
+  const kev72 = suma(activas.filter((a) => a.source === 'cisa-kev' && reciente(a, 72)).map((a) => a.extra?.grouped ?? 1));
+  const crit72 = suma(activas.filter((a) => a.source === 'github-advisories').map((a) => (a.extra?.advisories ? a.extra.advisories.filter((x) => x.severity === 'critical' && reciente(x, 72)).length : a.severity === 'critical' && reciente(a, 72) ? 1 : 0)));
   const cortes = activas.filter((a) => a.category === 'connectivity' && a.severity === 'high').length;
   const puntos = 3 * platCrit + 2 * platMayor + Math.min(kev72, 4) + Math.min(crit72, 3) + Math.min(cortes, 3);
   const level = platCrit > 0 || puntos >= 8 ? 'high' : puntos >= 4 ? 'elevated' : 'normal';
@@ -82,6 +84,13 @@ try {
 } catch (e) { epssFuente.ok = false; epssFuente.error = String(e?.message ?? e); }
 fuentes.push(epssFuente);
 
+// Alcance: qué tan usado es cada paquete afectado (y qué fallas en ataque tocan productos de uso común).
+const alcanceFuente = { ...FUENTES.find((f) => f.id === 'ecosystems'), run: undefined, ok: true, fetched_at: new Date().toISOString(), items: 0 };
+const cacheAlcance = { ...(previa?.reach_cache ?? {}) };
+try { alcanceFuente.items = await alcance(alertas, cacheAlcance); alcanceFuente.last_ok_at = alcanceFuente.fetched_at; }
+catch (e) { alcanceFuente.ok = false; alcanceFuente.error = String(e?.message ?? e); alcanceFuente.last_ok_at = previa?.sources?.find((s) => s.id === 'ecosystems')?.last_ok_at ?? null; }
+fuentes.push(alcanceFuente);
+
 // first_seen: cuándo vio Network Alert cada alerta por primera vez (permite «nuevo desde tu última visita» y el RSS).
 const vistas = new Map((previa?.alerts ?? []).map((a) => [a.id, a.first_seen]));
 // escalated_at: cuándo una alerta ya conocida subió a alta o crítica (por ejemplo, un incidente menor que se vuelve mayor).
@@ -102,10 +111,12 @@ for (const a of alertas) {
   a.tags = [...new Set((a.tags ?? []).map(String))].slice(0, 8);
   unicas.set(a.id, a);
 }
-// Dentro de cada severidad va primero lo que más probablemente te toca: lo explotado, luego las plataformas,
-// luego cortes, y al final los avisos de paquetes (que son muchos y casi todos de nicho).
+// Dentro de cada severidad va primero lo que más probablemente te toca: lo explotado (antes lo de uso común), luego
+// las plataformas, luego cortes, y al final los avisos de paquetes: primero los muy usados y al último los de nicho.
+const ALC = { wide: 0, mid: 1, niche: 2 };
+const alc = (a) => ALC[a.extra?.reach?.level] ?? 1;
 const PESO = (a) => (a.source === 'cisa-kev' ? 0 : a.category === 'platform' ? 1 : a.category === 'connectivity' ? 2 : a.category === 'vulnerability' ? 3 : 4);
-alertas = [...unicas.values()].sort((x, y) => ORDEN[x.severity] - ORDEN[y.severity] || PESO(x) - PESO(y) || Date.parse(y.published) - Date.parse(x.published));
+alertas = [...unicas.values()].sort((x, y) => ORDEN[x.severity] - ORDEN[y.severity] || PESO(x) - PESO(y) || alc(x) - alc(y) || Date.parse(y.published) - Date.parse(x.published));
 
 const paises = {};
 for (const a of alertas) for (const c of a.countries) {
@@ -133,6 +144,7 @@ const snapshot = {
   platforms: plataformas.sort((a, b) => a.name.localeCompare(b.name)),
   countries: paises,
   mexico,
+  reach_cache: cacheAlcance,
   alerts: alertas,
   sources: fuentes.map(({ run, optional, ...s }) => s),
   about: { site: 'https://networkalert.dev', docs: 'https://networkalert.dev/api', license: 'Compilación bajo CC BY 4.0; cada alerta conserva la licencia de su fuente (ver sources[].license).', disclaimer: 'Información para orientar, sin garantía. Verifica siempre en la fuente primaria enlazada.' },

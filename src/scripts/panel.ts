@@ -4,7 +4,7 @@ import { leeLista } from './lista-local';
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; page?: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; page?: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number; reach?: { level?: string } } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
 type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; mexico?: { affected_states: number; affected_providers: number } | null; alerts: Alerta[]; sources: Fuente[] };
@@ -85,7 +85,7 @@ const inicial = new URLSearchParams(location.search);
 const miLista = leeLista();
 const hayLista = miLista.proveedores.length + miLista.palabras.length > 0;
 const enLista = (a: Alerta) => hayLista && coincide(a, miLista);
-let filtro = ['vulnerability', 'platform', 'connectivity', 'advisory', 'mexico', 'lista'].includes(inicial.get('f') ?? '') ? inicial.get('f')! : 'todo';
+let filtro = ['amplio', 'vulnerability', 'platform', 'connectivity', 'advisory', 'mexico', 'lista'].includes(inicial.get('f') ?? '') ? inicial.get('f')! : 'todo';
 let busca = inicial.get('q') ?? '';
 let limite = 14;
 let ultimaVisita = 0;
@@ -112,15 +112,24 @@ function pintaNivel(s: Snapshot) {
   if (top.map((a) => a.id).join() !== destacadas.map((a) => a.id).join()) { destacadas = top; iDest = 0; pintaDestacada(); }
 }
 
+// Qué tan usado es lo afectado. Mismos textos que worker/paginas.ts (`ALCANCE`).
+const ALCANCE: Record<string, [string, string]> = {
+  wide: ['Muy usado', 'Está entre lo más usado: es probable que te toque, directa o indirectamente.'],
+  niche: ['Poco usado', 'Lo usa poca gente: solo te toca si sabes que lo tienes instalado.'],
+};
+const muyUsado = (a: Alerta) => a.extra?.reach?.level === 'wide' && ORDEN[a.severity] <= 1;
+
 function tarjeta(a: Alerta): HTMLLIElement {
   const nuevo = ultimaVisita > 0 && Date.parse(a.first_seen) > ultimaVisita;
   const subio = !nuevo && ultimaVisita > 0 && !!a.escalated_at && Date.parse(a.escalated_at) > ultimaVisita;
+  const alc = ALCANCE[a.extra?.reach?.level ?? ''];
   const pie: (Node | null | false | undefined)[] = [
+    !!alc && h('span', { class: `tag tag--${a.extra!.reach!.level === 'wide' ? 'amplio' : 'nicho'}`, title: alc[1] }, alc[0]),
     !!a.extra?.ransomware && h('span', { class: 'tag tag--fuerte' }, 'Usada en ransomware'),
     !!a.extra?.cve && h('span', { class: 'tag' }, a.extra.cve!),
     a.extra?.cvss != null && h('span', { class: 'tag' }, `CVSS ${a.extra.cvss}`),
     a.extra?.epss != null && a.extra.epss.score >= 0.05 && h('span', { class: 'tag', title: 'Probabilidad de explotación en 30 días según EPSS (FIRST.org)' }, `EPSS ${(a.extra.epss.score * 100).toFixed(0)}%`),
-    ...a.tags.filter((t) => t !== 'explotada').slice(0, 4).map((t) => h('span', { class: 'tag' }, t)),
+    ...a.tags.filter((t) => t !== 'explotada' && !/^CVE-\d/.test(t)).slice(0, 4).map((t) => h('span', { class: 'tag' }, t)),
     a.stale && h('span', { class: 'tag', title: 'La fuente no respondió en la última lectura; este es el último dato conocido.' }, 'sin actualizar'),
   ];
   return h('li', { class: 'alerta', 'data-sev': a.severity },
@@ -141,11 +150,11 @@ function pintaAlertas(s: Snapshot) {
   const lista = $('lista-alertas'); if (!lista) return;
   const q = busca.trim().toLowerCase();
   const visibles = s.alerts.filter((a) =>
-    (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'mexico' ? a.countries.includes('MX') : filtro === 'lista' ? enLista(a) : a.category === filtro) &&
+    (filtro === 'todo' ? ORDEN[a.severity] <= 2 : filtro === 'amplio' ? muyUsado(a) : filtro === 'mexico' ? a.countries.includes('MX') : filtro === 'lista' ? enLista(a) : a.category === filtro) &&
     (!q || `${a.title} ${a.title_es ?? ''} ${a.summary ?? ''} ${a.summary_es ?? ''} ${a.tags.join(' ')} ${a.extra?.cve ?? ''}`.toLowerCase().includes(q)));
   lista.replaceChildren(...visibles.slice(0, limite).map(tarjeta));
   const vacio = $('alertas-vacio');
-  if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'lista' ? (hayLista ? 'Nada activo toca lo que usas. Buena señal.' : 'Aún no marcas lo que usas.') : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : 'Sin alertas en esta categoría.'; }
+  if (vacio) { vacio.hidden = visibles.length > 0; vacio.textContent = q ? `Nada coincide con «${busca.trim()}». Buena señal.` : filtro === 'lista' ? (hayLista ? 'Nada activo toca lo que usas. Buena señal.' : 'Aún no marcas lo que usas.') : filtro === 'mexico' ? 'Sin cortes en México en las últimas 24 horas.' : filtro === 'amplio' ? 'Hoy no hay fallas graves en lo más usado. Buena señal.' : 'Sin alertas en esta categoría.'; }
   const ed = $('lista-editar'); if (ed) ed.hidden = filtro !== 'lista';
   const mas = $<HTMLButtonElement>('ver-mas');
   if (mas) { mas.hidden = visibles.length <= limite; mas.textContent = `Ver ${Math.min(20, visibles.length - limite)} más (${visibles.length - limite} restantes)`; }
@@ -155,7 +164,7 @@ function pintaAlertas(s: Snapshot) {
 function pintaCuentas(s: Snapshot) {
   document.querySelectorAll<HTMLElement>('[data-cuenta]').forEach((el) => {
     const k = el.dataset.cuenta!;
-    el.textContent = k === 'lista' ? (hayLista ? String(s.alerts.filter(enLista).length) : '') : String(k === 'todo' ? s.alerts.filter((a) => ORDEN[a.severity] <= 2).length : k === 'mexico' ? s.alerts.filter((a) => a.countries.includes('MX')).length : s.counts.by_category[k] ?? 0);
+    el.textContent = k === 'lista' ? (hayLista ? String(s.alerts.filter(enLista).length) : '') : String(k === 'todo' ? s.alerts.filter((a) => ORDEN[a.severity] <= 2).length : k === 'amplio' ? s.alerts.filter(muyUsado).length : k === 'mexico' ? s.alerts.filter((a) => a.countries.includes('MX')).length : s.counts.by_category[k] ?? 0);
   });
 }
 

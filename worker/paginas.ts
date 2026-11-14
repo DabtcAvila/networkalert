@@ -12,6 +12,13 @@ import { ORDEN, SEV_INDEXABLE, slugDe, type Alerta, type Guardada, type Renglon 
 const CLAVES = ['critical', 'high', 'medium', 'low', 'info'];
 const SEV: Record<string, string> = { critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja', info: 'Informativa' };
 const CAT: Record<string, string> = { vulnerability: 'Vulnerabilidad', platform: 'Plataforma', connectivity: 'Conectividad', advisory: 'Aviso' };
+// Qué tan usado es lo afectado (`extra.reach`). Solo se etiquetan los dos extremos.
+export const ALCANCE: Record<string, [string, string]> = {
+  wide: ['Muy usado', 'Está entre lo más usado: es probable que te toque, directa o indirectamente.'],
+  niche: ['Poco usado', 'Lo usa poca gente: solo te toca si sabes que lo tienes instalado.'],
+};
+type Reach = { level?: string; top_pct?: number | null; basis?: string };
+const etiquetaAlcance = (r?: Reach) => { const e = r?.level ? ALCANCE[r.level] : null; return e ? `<span class="tag tag--${r!.level === 'wide' ? 'amplio' : 'nicho'}" title="${esc(e[1])}">${e[0]}</span>` : ''; };
 const FASE: Record<string, string> = { investigating: 'En investigación', identified: 'Causa identificada', monitoring: 'Corregido, en observación', resolved: 'Resuelto', scheduled: 'Mantenimiento programado', in_progress: 'Mantenimiento en curso', verifying: 'Verificando', completed: 'Terminado' };
 export const PRIMER_MES = '2026-11';
 
@@ -42,13 +49,14 @@ type Nombres = (fuente: string) => string;
 
 /** Tarjeta de la lista de /alertas. Mismo marcado que arma el navegador en src/scripts/panel.ts (función `tarjeta`). */
 export function tarjeta(a: Alerta, nombre: Nombres): string {
-  const x = (a.extra ?? {}) as { cve?: string; cvss?: number; epss?: { score: number }; ransomware?: boolean };
+  const x = (a.extra ?? {}) as { cve?: string; cvss?: number; epss?: { score: number }; ransomware?: boolean; reach?: Reach };
   const pie = [
+    etiquetaAlcance(x.reach),
     x.ransomware ? '<span class="tag tag--fuerte">Usada en ransomware</span>' : '',
     x.cve ? `<span class="tag">${esc(x.cve)}</span>` : '',
     x.cvss != null ? `<span class="tag">CVSS ${esc(x.cvss)}</span>` : '',
     x.epss && x.epss.score >= 0.05 ? `<span class="tag" title="Probabilidad de explotación en 30 días según EPSS (FIRST.org)">EPSS ${(x.epss.score * 100).toFixed(0)}%</span>` : '',
-    ...a.tags.filter((t) => t !== 'explotada').slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`),
+    ...a.tags.filter((t) => t !== 'explotada' && !/^CVE-\d/.test(t)).slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`),
     a.stale ? '<span class="tag" title="La fuente no respondió en la última lectura; este es el último dato conocido.">sin actualizar</span>' : '',
   ].join('');
   return `<li class="alerta" data-sev="${esc(a.severity)}"><p class="alerta__cab"><span class="sev">${esc(SEV[a.severity] ?? a.severity)}</span><span>${esc(CAT[a.category] ?? a.category)}</span>`
@@ -67,18 +75,19 @@ export type Estado = { activa: boolean; cerrada?: string | null; sevMax?: number
 
 /** Cuerpo de la página de una alerta. */
 export function ficha(a: Guardada, e: Estado): string {
-  const x = (a.extra ?? {}) as { cve?: string; ghsa?: string; cvss?: number; epss?: { score: number; percentile?: number }; ransomware?: boolean; due?: string; phase?: string; cwes?: string[]; grouped?: number; incidents?: { name?: string; url?: string; severity?: string; phase?: string | null; started?: string }[]; packages?: { ecosystem?: string; name?: string; range?: string; patched?: string | null }[] };
+  const x = (a.extra ?? {}) as { cve?: string; ghsa?: string; cvss?: number; epss?: { score: number; percentile?: number }; ransomware?: boolean; due?: string; phase?: string; cwes?: string[]; grouped?: number; incidents?: { name?: string; url?: string; severity?: string; phase?: string | null; started?: string }[]; reach?: Reach; risk?: string; advisories?: { id?: string; cve?: string | null; title?: string; title_es?: string; url?: string; severity?: string; published?: string }[]; packages?: { ecosystem?: string; name?: string; range?: string; patched?: string | null }[] };
   const fuente = a.source_name ?? a.source;
   const mes = String(a.first_seen).slice(0, 7);
   const tecnica = a.category === 'vulnerability' || a.category === 'advisory';
   const estado = e.activa
     ? '<strong>Activa.</strong> Aparece en la lectura más reciente de la fuente.'
-    : `<strong>En el archivo.</strong> ${tecnica ? `Salió de la lista de alertas recientes el ${fecha(e.cerrada)}. Eso no quiere decir que el riesgo terminó: las versiones sin corregir siguen expuestas.` : x.grouped ? `Este grupo dejó de publicarse el ${fecha(e.cerrada)}: quedaron menos de tres incidentes menores abiertos a la vez.` : `La fuente dejó de reportarla el ${fecha(e.cerrada)}.`}`;
+    : `<strong>En el archivo.</strong> ${tecnica ? `Salió de la lista de alertas recientes el ${fecha(e.cerrada)}. Eso no quiere decir que el riesgo terminó: las versiones sin corregir siguen expuestas.` : x.grouped && x.incidents ? `Este grupo dejó de publicarse el ${fecha(e.cerrada)}: quedaron menos de tres incidentes menores abiertos a la vez.` : `La fuente dejó de reportarla el ${fecha(e.cerrada)}.`}`;
   const dato = (k: string, v: string) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
   const datos = [
     dato('Gravedad', esc(SEV[a.severity] ?? a.severity) + (e.sevMax != null && e.sevMax < (ORDEN[a.severity] ?? 4) ? ` (llegó a ${esc(SEV[CLAVES[e.sevMax]]).toLowerCase()})` : '')),
     dato('Tipo', esc(CAT[a.category] ?? a.category)),
     dato('Identificador', [x.cve && `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(x.cve)}" target="_blank" rel="noopener noreferrer">${esc(x.cve)}</a>`, x.ghsa && esc(x.ghsa)].filter(Boolean).join(' · ')),
+    dato('Qué tan usado', x.reach?.level && ALCANCE[x.reach.level] ? `${ALCANCE[x.reach.level][0]}. ${x.reach.basis === 'descargas' && x.reach.top_pct != null ? `Está entre el ${esc(x.reach.top_pct < 1 ? x.reach.top_pct : Math.round(x.reach.top_pct))} % más descargado de su gestor de paquetes (ecosyste.ms)` : x.reach.basis === 'descargas' ? 'Según sus descargas (ecosyste.ms)' : 'Está en la lista de productos de uso común de la <a href="/metodologia">metodología</a>'}.` : ''),
     dato('CVSS', x.cvss != null ? `${esc(x.cvss)} de 10` : ''),
     dato('Probabilidad de ataque', x.epss ? `${(x.epss.score * 100).toFixed(x.epss.score < 0.1 ? 1 : 0)} % en los próximos 30 días (EPSS, FIRST.org)` : ''),
     dato('Ransomware', x.ransomware ? 'Usada en campañas de ransomware, según CISA' : ''),
@@ -88,7 +97,7 @@ export function ficha(a: Guardada, e: Estado): string {
     dato('Publicada por la fuente', fecha(a.published)),
     dato('Vista por primera vez', `${fechaHora(a.first_seen)} (hora de México)`),
     dato('Subió de nivel', a.escalated_at ? fechaHora(a.escalated_at) : ''),
-    dato('Etiquetas', a.tags.filter((t) => t !== 'explotada').map((t) => `<span class="tag">${esc(t)}</span>`).join(' ')),
+    dato('Etiquetas', a.tags.filter((t) => t !== 'explotada' && !/^CVE-\d/.test(t)).map((t) => `<span class="tag">${esc(t)}</span>`).join(' ')),
     dato('Fuente', `<a href="${esc(https(a.source_url ?? a.url))}" target="_blank" rel="noopener noreferrer">${esc(fuente)}</a>${a.source_license ? ` · ${esc(a.source_license)}` : ''}`),
   ].join('');
   const paquetes = (x.packages ?? []).filter((p) => p?.name);
@@ -99,10 +108,12 @@ export function ficha(a: Guardada, e: Estado): string {
     + `<p class="aviso">${estado}</p>`
     // En los avisos de paquetes el resumen es la misma lista que la tabla de abajo: no se repite.
     + (a.summary && !(paquetes.length && a.source === 'github-advisories') ? `<section class="stack--sm stack"><h2>Qué pasó</h2><p class="ficha__texto">${esc(a.summary_es ?? a.summary)}</p>${a.summary_es ? `<p class="meta" lang="en">Texto original: ${esc(a.summary)}</p>` : ''}</section>` : '')
+    + (x.risk && paquetes.length && a.source === 'github-advisories' ? `<section class="stack--sm stack"><h2>Qué puede pasar</h2><p class="ficha__texto">${esc(x.risk)}</p><p class="meta">Resumen en palabras llanas del tipo de falla que declara la fuente. El detalle está en el aviso original.</p></section>` : '')
     // Un incidente de plataforma o un corte que ya terminó no pide ninguna acción.
     + (a.action && (e.activa || tecnica) ? `<section class="stack--sm stack"><h2>Qué hacer</h2><p class="ficha__texto alerta__accion">${esc(a.action)}</p></section>` : '')
     + (paquetes.length ? `<section class="stack--sm stack"><h2>Paquetes afectados</h2><div class="tabla-wrap"><table class="tabla"><thead><tr><th>Paquete</th><th>Gestor</th><th>Versiones afectadas</th><th>Corregido en</th></tr></thead><tbody>${paquetes.map((p) => `<tr><td class="mono">${esc(p.name)}</td><td>${esc(p.ecosystem)}</td><td class="mono">${esc(p.range ?? '')}</td><td class="mono">${p.patched ? esc(p.patched) : 'Sin versión corregida'}</td></tr>`).join('')}</tbody></table></div></section>` : '')
     + (x.incidents?.length ? `<section class="stack--sm stack"><h2>${e.activa ? 'Incidentes abiertos' : 'Incidentes que incluía'}</h2><ul class="ficha__lista">${x.incidents.map((i) => `<li><a href="${esc(https(i.url))}" target="_blank" rel="noopener noreferrer" lang="en">${esc(i.name)}</a><span class="meta"> · ${esc(SEV[i.severity ?? ''] ?? '')}${i.phase ? ` · ${esc(FASE[i.phase] ?? i.phase)}` : ''}${i.started ? ` · desde el ${fecha(i.started)}` : ''}</span></li>`).join('')}</ul>${(x.grouped ?? 0) > x.incidents.length ? `<p class="meta">Se muestran ${x.incidents.length} de ${x.grouped}; el resto está en la página de estado.</p>` : ''}</section>` : '')
+    + (x.advisories?.length ? `<section class="stack--sm stack"><h2>Fallas que incluye</h2><ul class="ficha__lista">${x.advisories.map((i) => `<li><a href="${esc(https(i.url))}" target="_blank" rel="noopener noreferrer"${i.title_es ? ` title="Original: ${esc(i.title)}"` : ' lang="en"'}>${esc(i.title_es ?? i.title)}</a><span class="meta"> · ${esc(SEV[i.severity ?? ''] ?? '')}${[i.cve, i.id].filter(Boolean).length ? ` · ${esc([...new Set([i.cve, i.id].filter(Boolean))].join(' · '))}` : ''}${i.published ? ` · ${fecha(i.published)}` : ''}</span></li>`).join('')}</ul>${(x.grouped ?? 0) > x.advisories.length ? `<p class="meta">Se muestran ${x.advisories.length} de ${x.grouped}; el resto está en la fuente.</p>` : ''}<p class="meta">Van juntas porque todas se resuelven con la misma acción.</p></section>` : '')
     + `<section class="stack--sm stack"><h2>Datos</h2><dl class="ficha__datos">${datos}</dl></section>`
     + `<p class="cluster"><a class="btn btn--primary" href="${esc(https(a.url))}" target="_blank" rel="noopener noreferrer">Ver en la fuente</a><a class="enlace-flecha" href="/mi-lista">Recibir avisos de lo que uso</a><a class="enlace-flecha" href="/alertas">Todas las alertas</a></p>`
     + `<p class="meta">Network Alert compila y resume; la fuente manda. ${a.title_es || a.summary_es ? 'La traducción es automática. ' : ''}Verifica en la fuente antes de actuar. ¿Viste un error? Está en <a href="/correcciones">Correcciones</a> cómo reportarlo.</p>`

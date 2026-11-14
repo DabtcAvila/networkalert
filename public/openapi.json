@@ -992,7 +992,7 @@
      },
      "extra": {
       "type": "object",
-      "description": "Campos propios de la fuente: cve, epss, cvss, packages, signals…"
+      "description": "Campos propios de la fuente: cve, epss, cvss, packages, signals… Además: `reach` (qué tan usado es lo afectado: level wide|mid|niche, top_pct y basis), `risk` (qué puede pasar, en una línea), y en las alertas que juntan varias fallas, `grouped` (cuántas) y `advisories` (la lista, cada una con su enlace)."
      },
      "escalated_at": {
       "type": "string",
