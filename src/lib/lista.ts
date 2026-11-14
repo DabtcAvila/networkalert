@@ -26,13 +26,20 @@ export const tieneAlgo = (l: Lista) => l.proveedores.length + l.palabras.length 
 /** Convierte «wordpress, next.js  django» en palabras sueltas. */
 export const partePalabras = (texto: string) => texto.split(/[,\n]+/).map((p) => p.trim()).filter(Boolean);
 
+// Palabras tan generales que casi cualquier alerta las menciona. Se aceptan, pero la página sugiere algo más preciso.
+const GENERALES = new Set(['npm', 'pip', 'pypi', 'go', 'maven', 'nuget', 'rubygems', 'gem', 'composer', 'packagist', 'cargo', 'crates', 'js', 'ts', 'api', 'web', 'server', 'cloud', 'app', 'sql', 'http', 'https', 'ssl', 'dns', 'email', 'correo']);
+/** ¿La palabra es demasiado general para dar avisos útiles? */
+export const esGeneral = (p: string) => p.length < 3 || GENERALES.has(p.toLowerCase());
+
 const escapa = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** ¿La alerta toca algo de la lista? Un proveedor coincide por su página de estado; una palabra, como palabra completa en el título, las etiquetas o los paquetes. */
+/** ¿La alerta toca algo de la lista? Un proveedor coincide por su página de estado; una palabra, como palabra completa en el título, el producto o los paquetes. */
 export function coincide(a: AlertaMin, l: Pick<Lista, 'proveedores' | 'palabras'>): boolean {
   const plataforma = a.extra?.platform ?? (a.source.startsWith('status-') ? a.source.slice(7) : null);
   if (plataforma && l.proveedores.includes(plataforma)) return true;
   if (!l.palabras.length) return false;
-  const texto = [a.title, a.title_es ?? '', ...(a.tags ?? []), a.extra?.cve ?? '', ...(a.extra?.packages ?? []).map((p) => p?.name ?? '')].join(' \n ').toLowerCase();
+  // En los avisos de paquetes las etiquetas son solo el gestor (npm, pip…): no cuentan, o «npm» traería todos los avisos de npm.
+  const etiquetas = a.source === 'github-advisories' ? [] : (a.tags ?? []);
+  const texto = [a.title, a.title_es ?? '', ...etiquetas, a.extra?.cve ?? '', ...(a.extra?.packages ?? []).map((p) => p?.name ?? '')].join(' \n ').toLowerCase();
   return l.palabras.some((p) => new RegExp(`(^|[^a-z0-9])${escapa(p)}([^a-z0-9]|$)`).test(texto));
 }

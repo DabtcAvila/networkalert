@@ -63,7 +63,7 @@ const NOTAS = [
   'Una alerta con `stale: true` viene de una fuente que falló en la última lectura; se conserva el último dato conocido.',
 ];
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; escalated_at?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
 type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, unknown>; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
@@ -104,21 +104,24 @@ function alertas(s: Snapshot, q: URLSearchParams): Response {
   return json({ ...procedencia(s), total: todas.length, returned: Math.min(todas.length, limite), alerts: todas.slice(0, limite) });
 }
 
+// Para los feeds: una alerta que subió a alta o crítica entra con la fecha en que subió.
+const visto = (a: Alerta) => a.escalated_at ?? a.first_seen;
+
 function feedRss(s: Snapshot): Response {
-  const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(b.first_seen) - Date.parse(a.first_seen)).slice(0, 60);
+  const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(visto(b)) - Date.parse(visto(a))).slice(0, 60);
   const cuerpo = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
 <title>Network Alert · alertas altas y críticas</title><link>${SITIO}</link><atom:link href="${SITIO}/feed.xml" rel="self" type="application/rss+xml"/>
 <description>Vulnerabilidades explotadas, caídas de plataformas y cortes de Internet que pueden afectar tus sitios.</description><language>es-MX</language><lastBuildDate>${new Date(s.generated_at).toUTCString()}</lastBuildDate><ttl>10</ttl>
-${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(a.first_seen).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml([a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '))}</description></item>`).join('\n')}
+${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(visto(a)).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml([a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '))}</description></item>`).join('\n')}
 </channel></rss>`;
   return responde(cuerpo, 'application/rss+xml; charset=utf-8', 'public, max-age=300');
 }
 
 function feedJson(s: Snapshot): Response {
-  const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(b.first_seen) - Date.parse(a.first_seen)).slice(0, 60);
+  const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(visto(b)) - Date.parse(visto(a))).slice(0, 60);
   return responde(JSON.stringify({ version: 'https://jsonfeed.org/version/1.1', title: 'Network Alert · alertas altas y críticas', home_page_url: SITIO, feed_url: `${SITIO}/feed.json`, language: 'es-MX',
-    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: [a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '), date_published: a.first_seen, tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
+    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: [a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '), date_published: visto(a), tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
 }
 
 function insignia(s: Snapshot | null): Response {

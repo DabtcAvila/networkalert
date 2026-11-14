@@ -1,6 +1,6 @@
 // «Mi lista»: guarda en este navegador lo que la persona usa y, si deja su correo, pide los avisos al servidor.
 // La llave que llega por correo viaja en el fragmento (#…) de la dirección: no se envía al servidor ni queda en registros.
-import { MAX, VACIA, partePalabras, type Lista } from '../lib/lista';
+import { MAX, VACIA, esGeneral, partePalabras, type Lista } from '../lib/lista';
 import { leeLista, guardaLista, leeLlave, guardaLlave } from './lista-local';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
@@ -32,6 +32,9 @@ const palabrasDelCampo = () => [...new Set(partePalabras(campoPal?.value ?? '').
 function marcaSugeridas() {
   const p = palabrasDelCampo();
   document.querySelectorAll<HTMLButtonElement>('[data-palabra]').forEach((b) => b.setAttribute('aria-pressed', String(p.includes(b.dataset.palabra!))));
+  // Aviso si alguna palabra es tan general que traería alertas que no le tocan.
+  const aviso = $('lista-general'), generales = p.filter(esGeneral);
+  if (aviso) { aviso.hidden = !generales.length; aviso.textContent = generales.length ? `«${generales.join('», «')}» ${generales.length === 1 ? 'es muy general' : 'son muy generales'} y puede traer alertas que no te tocan. Mejor escribe el producto o paquete exacto, por ejemplo: express, django, wordpress.` : ''; }
 }
 
 function alFormulario() {

@@ -16,7 +16,7 @@ export interface Correo {
   send(m: { to: string; from: { email: string; name: string }; replyTo?: string; subject: string; html: string; text: string; headers?: Record<string, string> }): Promise<unknown>;
 }
 export interface EnvAvisos { DB?: D1Database; EMAIL?: Correo; ORIGEN?: string }
-type Alerta = AlertaMin & { id: string; severity: string; url: string; first_seen: string; status: string; stale?: boolean; summary?: string; summary_es?: string; action?: string };
+type Alerta = AlertaMin & { id: string; severity: string; url: string; first_seen: string; status: string; stale?: boolean; summary?: string; summary_es?: string; action?: string; escalated_at?: string };
 type Fila = { id: string; correo: string; config: string; pendiente: string | null; confirmada: number; ultimo_correo: string | null; avisado_hasta: string | null; dia: string | null; correos_dia: number };
 export type Salida = { status: number; cuerpo: unknown };
 
@@ -243,13 +243,15 @@ async function vueltaAlertas(env: EnvAvisos & { DB: D1Database; EMAIL: Correo },
     const enviadosHoy = f.dia === hoy ? f.correos_dia : 0;
     if (enviadosHoy >= CORREOS_ALERTA_POR_DIA) continue;
     const desde = Date.parse(f.avisado_hasta ?? '') || Date.now();
-    const nuevas = serias.filter((a) => Date.parse(a.first_seen) > desde && coincide(a, l));
+    // Cuenta como nueva la que apareció después del último aviso y también la que ya existía y subió a alta o crítica.
+    const subio = (a: Alerta) => !!a.escalated_at && Date.parse(a.escalated_at) > desde && Date.parse(a.first_seen) <= desde;
+    const nuevas = serias.filter((a) => (Date.parse(a.first_seen) > desde || subio(a)) && coincide(a, l));
     if (!nuevas.length) continue;
     const titulo = (a: Alerta) => a.title_es ?? a.title;
     const enviado = await envia(env, f.correo, f.id, {
       asunto: `${titulo(nuevas[0])}${nuevas.length > 1 ? ` (y ${nuevas.length - 1} más)` : ''}`,
       titulo: nuevas.length === 1 ? 'Una alerta toca algo que usas' : `${nuevas.length} alertas tocan algo que usas`,
-      puntos: nuevas.slice(0, 8).map((a) => ({ marca: SEV[a.severity], titulo: titulo(a), detalle: [(a.summary_es ?? a.summary)?.slice(0, 240), a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' ') || undefined, url: /^https:\/\//.test(a.url) ? a.url : undefined })),
+      puntos: nuevas.slice(0, 8).map((a) => ({ marca: subio(a) ? `Subió a ${SEV[a.severity].toLowerCase()}` : SEV[a.severity], titulo: titulo(a), detalle: [(a.summary_es ?? a.summary)?.slice(0, 240), a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' ') || undefined, url: /^https:\/\//.test(a.url) ? a.url : undefined })),
       boton: { texto: 'Ver mis alertas', url: `${origen(env)}/alertas?f=lista` },
       nota: 'Cada alerta enlaza a su fuente. Verifica ahí antes de actuar.',
     });

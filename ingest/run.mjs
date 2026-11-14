@@ -81,11 +81,19 @@ fuentes.push(epssFuente);
 
 // first_seen: cuándo vio Network Alert cada alerta por primera vez (permite «nuevo desde tu última visita» y el RSS).
 const vistas = new Map((previa?.alerts ?? []).map((a) => [a.id, a.first_seen]));
+// escalated_at: cuándo una alerta ya conocida subió a alta o crítica (por ejemplo, un incidente menor que se vuelve mayor).
+// Sirve para avisar de nuevo: sin esto, quien la vio como «media» nunca se enteraría de que empeoró.
+const previas = new Map((previa?.alerts ?? []).map((a) => [a.id, a]));
 const ahora = new Date().toISOString();
 const unicas = new Map();
 for (const a of alertas) {
   if (!a.id || !a.title || !a.url || !a.published) continue; // sin fuente enlazada o sin fecha no se publica
   a.first_seen = vistas.get(a.id) ?? ahora;
+  const antes = previas.get(a.id);
+  if (antes && !a.stale) {
+    if (ORDEN[a.severity] <= 1 && ORDEN[a.severity] < ORDEN[antes.severity]) a.escalated_at = ahora;
+    else if (antes.escalated_at && ORDEN[a.severity] <= 1) a.escalated_at = antes.escalated_at;
+  }
   a.countries ??= [];
   if (!a.action) delete a.action;
   a.tags = [...new Set((a.tags ?? []).map(String))].slice(0, 8);

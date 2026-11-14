@@ -47,6 +47,7 @@ const reglas = [
           <label class="lista__campo"><span class="meta">Herramientas, lenguajes o paquetes, separados por comas. Hasta {MAX.palabras}.</span>
             <input class="buscador" id="lista-palabras" type="text" placeholder="wordpress, next, django" autocomplete="off" autocapitalize="none" spellcheck="false" />
           </label>
+          <p class="meta" id="lista-general" role="status" hidden></p>
           <div class="lista__chips" id="lista-sugeridas">
             {sugeridas.map((s) => <button type="button" class="chip chip--chico" data-palabra={s} aria-pressed="false">{s}</button>)}
           </div>

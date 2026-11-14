@@ -4,7 +4,7 @@ import { leeLista } from './lista-local';
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
 type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; alerts: Alerta[]; sources: Fuente[] };
@@ -107,6 +107,7 @@ function pintaNivel(s: Snapshot) {
 
 function tarjeta(a: Alerta): HTMLLIElement {
   const nuevo = ultimaVisita > 0 && Date.parse(a.first_seen) > ultimaVisita;
+  const subio = !nuevo && ultimaVisita > 0 && !!a.escalated_at && Date.parse(a.escalated_at) > ultimaVisita;
   const pie: (Node | null | false | undefined)[] = [
     !!a.extra?.ransomware && h('span', { class: 'tag tag--fuerte' }, 'Usada en ransomware'),
     !!a.extra?.cve && h('span', { class: 'tag' }, a.extra.cve!),
@@ -121,7 +122,8 @@ function tarjeta(a: Alerta): HTMLLIElement {
       h('span', {}, CAT[a.category] ?? a.category),
       h('span', {}, datos?.sources.find((f) => f.id === a.source)?.name ?? a.source),
       h('time', { datetime: a.published }, hace(a.published)),
-      nuevo && h('span', { class: 'tag tag--nuevo' }, 'Nuevo')),
+      nuevo && h('span', { class: 'tag tag--nuevo' }, 'Nuevo'),
+      subio && h('span', { class: 'tag tag--nuevo', title: 'Ya estaba en la lista con menor gravedad' }, 'Subió de nivel')),
     h('h3', { class: 'alerta__titulo' }, h('a', { href: enlaceSeguro(a.url), rel: 'noopener noreferrer', target: '_blank', ...(a.title_es ? { title: `Original: ${a.title.trim()}` } : {}) }, a.title_es ?? a.title)),
     !!a.summary && h('p', { class: 'alerta__resumen', ...(a.summary_es ? { title: `Original: ${a.summary}` } : {}) }, a.summary_es ?? a.summary),
     !!a.action && h('p', { class: 'alerta__accion' }, h('strong', {}, 'Qué hacer: '), a.action),

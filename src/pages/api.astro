@@ -62,6 +62,7 @@ test "$(curl -s https://networkalert.dev/api/v1/status | jq -r .status.level)" !
   "url": "https://…",            // fuente primaria, siempre https
   "published": "2026-11-12T00:00:00.000Z",
   "first_seen": "2026-11-12T14:20:03.000Z",
+  "escalated_at": "…",           // si ya existía y subió a alta o crítica; puede faltar
   "status": "active",
   "countries": [],
   "tags": ["explotada"],

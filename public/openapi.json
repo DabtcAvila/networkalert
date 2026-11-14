@@ -864,6 +864,11 @@
      "extra": {
       "type": "object",
       "description": "Campos propios de la fuente: cve, epss, cvss, packages, signals…"
+     },
+     "escalated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento en que una alerta ya publicada subió a alta o crítica. Falta si nunca subió."
      }
     }
    },
