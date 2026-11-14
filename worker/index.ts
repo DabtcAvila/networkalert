@@ -435,7 +435,7 @@ async function paginaArchivo(env: Env, url: URL, ruta: string, s: Snapshot | nul
 // El sitemap recorre todo el archivo: se guarda seis horas en la caché de Cloudflare para no repetir la consulta.
 async function sitemapAlertas(env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!env.DB) return fallo(503, 'Archivo no disponible.');
-  const cache = (caches as unknown as { default: Cache }).default, llave = new Request(`${SITIO}/__sitemap-alertas/v1`);
+  const cache = (caches as unknown as { default: Cache }).default, llave = new Request(`${SITIO}/__sitemap-alertas/v2`);
   const previa = await cache.match(llave).catch(() => undefined);
   if (previa) return previa;
   const res = new Response(sitemap(SITIO, await paraSitemap(env.DB)), { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=21600', 'X-Content-Type-Options': 'nosniff' } });
