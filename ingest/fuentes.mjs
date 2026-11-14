@@ -161,20 +161,33 @@ async function ioda() {
 }
 
 // Cloudflare Radar: cortes verificados por su equipo (causa, alcance, proveedor). CC BY-NC 4.0. Requiere token gratuito.
+const CAUSA_RADAR = { TECHNICAL_PROBLEM: 'problema técnico', POWER_OUTAGE: 'apagón eléctrico', CABLE_CUT: 'corte de cable', GOVERNMENT_DIRECTED: 'corte ordenado por el gobierno', WEATHER: 'clima', CYBERATTACK: 'ciberataque', MILITARY_ACTION: 'acción militar', MAINTENANCE: 'mantenimiento', FIRE: 'incendio', EARTHQUAKE: 'sismo', NATURAL_DISASTER: 'desastre natural', UNKNOWN: 'causa desconocida' };
+const nombrePais = new Intl.DisplayNames(['es'], { type: 'region' });
 async function radar() {
   const token = process.env.CF_RADAR_TOKEN;
   if (!token) return null;
   const j = await pedir('https://api.cloudflare.com/client/v4/radar/annotations/outages?dateRange=7d&limit=100&format=json', { headers: { authorization: `Bearer ${token}` } });
-  return (j.result?.annotations ?? []).map((a) => ({
-    id: `radar:${a.id}`,
-    source: 'cloudflare-radar', category: 'connectivity',
-    severity: a.endDate ? 'info' : a.scope ? 'medium' : 'high',
-    title: `${(a.locationsDetails ?? []).map((l) => l.name).join(', ') || 'Corte'}: ${a.outage?.outageCause?.replace(/_/g, ' ').toLowerCase() ?? 'corte de Internet'}`,
-    summary: recorta([a.description, a.scope && `Alcance: ${a.scope}`, (a.asnsDetails ?? []).map((x) => x.name).join(', ')].filter(Boolean).join(' · ')),
-    url: a.linkedUrl || 'https://radar.cloudflare.com/outage-center',
-    published: iso(a.startDate), updated: iso(a.endDate ?? a.startDate), status: a.endDate ? 'resolved' : 'active',
-    countries: a.locations ?? [], tags: ['corte', 'verificado'], extra: { cause: a.outage?.outageCause ?? null, type: a.outage?.outageType ?? null, asns: a.asns ?? [] },
-  }));
+  return (j.result?.annotations ?? []).map((a) => {
+    const paises = a.locations ?? [];
+    const lugares = paises.map((c) => { try { return nombrePais.of(c) ?? c; } catch { return c; } }).join(', ');
+    const plataforma = a.outage?.outageType === 'PLATFORM';
+    // Radar no siempre anota el fin. Sin fecha de fin solo se toma como en curso durante 24 horas; después queda
+    // como informativa, para no dejar «activa» durante días una falla que ya pasó.
+    const enCurso = !a.endDate && Date.now() - Date.parse(a.startDate) < DIA;
+    // «Alta» solo para un país entero sin conexión. Lo regional, lo de un proveedor o lo de una plataforma es «media».
+    const severity = !enCurso ? 'info' : paises.length && !a.scope && !plataforma ? 'high' : 'medium';
+    const causa = CAUSA_RADAR[a.outage?.outageCause] ?? a.outage?.outageCause?.replace(/_/g, ' ').toLowerCase() ?? 'corte de Internet';
+    return {
+      id: `radar:${a.id}`,
+      source: 'cloudflare-radar', category: plataforma ? 'platform' : 'connectivity', severity,
+      title: `${lugares || (plataforma ? 'Falla de plataforma' : 'Corte de Internet')}: ${causa}`,
+      summary: recorta([a.description, a.scope && `Scope: ${a.scope}`, (a.asnsDetails ?? []).map((x) => x.name).join(', ')].filter(Boolean).join(' · ')),
+      action: enCurso ? (lugares ? `No depende de ti. Si tienes visitantes o servidores en ${lugares}, pueden tener lentitud o no poder entrar.` : 'No depende de ti. Si usas el servicio afectado, sigue el avance en su página de estado.') : null,
+      url: a.linkedUrl || 'https://radar.cloudflare.com/outage-center',
+      published: iso(a.startDate), updated: iso(a.endDate ?? a.startDate), status: enCurso ? 'active' : 'resolved',
+      countries: paises, tags: [plataforma ? 'plataforma' : 'corte', 'verificado'], extra: { cause: a.outage?.outageCause ?? null, type: a.outage?.outageType ?? null, asns: a.asns ?? [], ended: iso(a.endDate) },
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ Plataformas */
