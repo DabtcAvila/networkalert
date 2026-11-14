@@ -106,7 +106,7 @@ async function arranca() {
       const r = await pide('/api/lista/confirmar', { t: confirmar });
       if (!r.ok) { cierraAccion(); return dice(detalle(r.j, 'No se pudo confirmar. Intenta de nuevo.'), true); }
       llave = confirmar; guardaLlave(llave); usa(r.j); cierraAccion();
-      dice(r.j.lista?.dominios?.length ? 'Listo: avisos activos. En unos minutos te llega la primera revisión de tus dominios.' : 'Listo: avisos activos. Te escribiremos cuando haya una alerta alta o crítica de lo que usas.');
+      dice(r.j.lista?.dominios?.length ? 'Listo: avisos activos. En unos minutos te llega la primera revisión de tus dominios. Si no la ves, revisa tu carpeta de spam.' : 'Listo: avisos activos. Te escribiremos cuando haya una alerta alta o crítica de lo que usas. Si el correo de confirmación cayó en spam, márcalo como «no es spam» para que los avisos te lleguen.');
     });
     return;
   }
@@ -153,7 +153,7 @@ if (form) {
       return dice(detalle(r.j, 'No se pudo guardar. Intenta de nuevo en un momento.'), true);
     }
     if (r.j.guardado) { usa(r.j); dice('Cambios guardados.'); }
-    else dice(`Te enviamos un correo a ${correo}. Ábrelo y confirma para activar los avisos. Si no llega, revisa «spam».`);
+    else dice(`Te enviamos un correo a ${correo}. Ábrelo y confirma para activar los avisos. Si no lo ves en unos minutos, revisa tu carpeta de spam y márcalo como «no es spam».`);
   });
 
   $('lista-baja')?.addEventListener('click', () => {
