@@ -18,6 +18,10 @@
  *  POST /api/lista                  pide avisos por correo (o guarda un cambio si trae la llave)
  *  POST /api/lista/confirmar · /ver · /baja   confirmar, leer y borrar una lista con la llave del correo
  *  POST /api/lista/vuelta           corre a mano una vuelta de avisos (Bearer NA_INGEST_KEY)
+ *  GET  /alerta/<slug>              página propia de una alerta, activa o archivada (worker/paginas.ts)
+ *  GET  /archivo · /archivo/AAAA-MM archivo de alertas por mes
+ *  GET  /sitemap-alertas.xml        sitemap de las páginas de alertas
+ *  GET  / · /alertas                la página estática con las alertas del momento ya escritas en el HTML
  *
  * Convenciones: respuestas planas con procedencia arriba,
  * errores {"detail": …}, CORS abierto para lectura, Cache-Control corto y explícito.
@@ -25,6 +29,8 @@
 import { baja, confirma, solicita, ver, vuelta, type Correo, type Salida } from './avisos';
 import { normaliza, revisar } from './revisar';
 import { aplica, aplicaResumenes, completa, completaResumenes, type IA, type Mapa } from './traducir';
+import { archiva, delMes, paraSitemap, porSlug, slugDe, SLUG_VALIDO, type Guardada } from './archivo';
+import { descripcionDe, ficha, indexable, ldAlerta, listaArchivo, meses, navMeses, nombreMes, reescribe, renglonHoy, sitemap, tarjeta, type Estado } from './paginas';
 
 interface Env {
   ASSETS: { fetch: typeof fetch };
@@ -60,10 +66,11 @@ const ORDEN: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3,
 const NOTAS = [
   'Cada alerta enlaza a su fuente primaria en `url`; verifica ahí antes de actuar.',
   '`first_seen` es el momento en que Network Alert vio la alerta por primera vez, no cuando ocurrió.',
+  '`page` es la página permanente de la alerta en Network Alert; sigue abierta cuando la alerta deja de estar activa.',
   'Una alerta con `stale: true` viene de una fuente que falló en la última lectura; se conserva el último dato conocido.',
 ];
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; escalated_at?: string; url: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; escalated_at?: string; url: string; page?: string; published: string; updated?: string; first_seen: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: Record<string, unknown> };
 type Snapshot = { version: number; generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: Record<string, unknown>; context: Record<string, unknown>; platforms: unknown[]; countries: Record<string, unknown>; alerts: Alerta[]; sources: { id: string; name: string; url: string; license: string; ok: boolean | null }[]; about: Record<string, string> };
 
 // Copia en memoria del aislado: evita una lectura a KV por petición.
@@ -113,7 +120,7 @@ function feedRss(s: Snapshot): Response {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
 <title>Network Alert · alertas altas y críticas</title><link>${SITIO}</link><atom:link href="${SITIO}/feed.xml" rel="self" type="application/rss+xml"/>
 <description>Vulnerabilidades explotadas, caídas de plataformas y cortes de Internet que pueden afectar tus sitios.</description><language>es-MX</language><lastBuildDate>${new Date(s.generated_at).toUTCString()}</lastBuildDate><ttl>10</ttl>
-${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(visto(a)).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml([a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '))}</description></item>`).join('\n')}
+${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA' : 'ALTA'}] ${a.title_es ?? a.title}`)}</title><link>${xml(a.page ?? a.url)}</link><guid isPermaLink="false">${xml(a.id)}</guid><pubDate>${new Date(visto(a)).toUTCString()}</pubDate><category>${xml(a.category)}</category><source url="${xml(s.sources.find((f) => f.id === a.source)?.url ?? SITIO)}">${xml(s.sources.find((f) => f.id === a.source)?.name ?? a.source)}</source><description>${xml([a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`, `Fuente: ${a.url}`].filter(Boolean).join(' '))}</description></item>`).join('\n')}
 </channel></rss>`;
   return responde(cuerpo, 'application/rss+xml; charset=utf-8', 'public, max-age=300');
 }
@@ -121,7 +128,7 @@ ${items.map((a) => `<item><title>${xml(`[${a.severity === 'critical' ? 'CRÍTICA
 function feedJson(s: Snapshot): Response {
   const items = s.alerts.filter((a) => ORDEN[a.severity] <= 1 && !a.stale).sort((a, b) => Date.parse(visto(b)) - Date.parse(visto(a))).slice(0, 60);
   return responde(JSON.stringify({ version: 'https://jsonfeed.org/version/1.1', title: 'Network Alert · alertas altas y críticas', home_page_url: SITIO, feed_url: `${SITIO}/feed.json`, language: 'es-MX',
-    items: items.map((a) => ({ id: a.id, url: a.url, title: a.title_es ?? a.title, content_text: [a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '), date_published: visto(a), tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
+    items: items.map((a) => ({ id: a.id, url: a.page ?? a.url, external_url: a.url, title: a.title_es ?? a.title, content_text: [a.summary_es ?? a.summary, a.action && `Qué hacer: ${a.action}`].filter(Boolean).join(' '), date_published: visto(a), tags: [a.category, a.severity, ...a.tags] })) }), 'application/feed+json; charset=utf-8', 'public, max-age=300');
 }
 
 function insignia(s: Snapshot | null): Response {
@@ -178,17 +185,25 @@ async function ingest(request: Request, env: Env, ctx: ExecutionContext): Promis
   // Títulos y resúmenes en español: se aplican los ya traducidos y, tras responder, se traducen los nuevos.
   const [mapa, resumenes] = (await Promise.all([CLAVE_TITULOS, CLAVE_RESUMENES].map((k) => env.NA_KV.get(k, 'json').catch(() => null)))).map((m) => (m as Mapa | null) ?? {});
   aplica(s.alerts, mapa); aplicaResumenes(s.alerts, resumenes);
+  // Página permanente de cada alerta.
+  const origen = (env.ORIGEN ?? SITIO).replace(/\/$/, '');
+  for (const a of s.alerts) a.page = `${origen}/alerta/${slugDe(a)}`;
   const guarda = async () => { const t = JSON.stringify(s); await env.NA_KV.put(CLAVE, t); memo = { t: Date.now(), texto: t, datos: s }; };
   await guarda();
   ctx.waitUntil(anota(env, { lecturas: 1, con_fallas: s.sources.some((f) => f.ok === false) ? 1 : 0 }));
-  if (env.AI) ctx.waitUntil((async () => {
-    const [t, r] = await Promise.all([completa(env.AI!, s.alerts, mapa), completaResumenes(env.AI!, s.alerts, resumenes)]);
+  const traduce = async () => {
+    if (!env.AI) return;
+    const [t, r] = await Promise.all([completa(env.AI, s.alerts, mapa), completaResumenes(env.AI, s.alerts, resumenes)]);
     if (!t && !r) return;
     if (t) await env.NA_KV.put(CLAVE_TITULOS, JSON.stringify(mapa));
     if (r) await env.NA_KV.put(CLAVE_RESUMENES, JSON.stringify(resumenes));
     aplica(s.alerts, mapa); aplicaResumenes(s.alerts, resumenes);
     await guarda();
-  })().catch((e) => console.error('traducir', String(e))));
+  };
+  // El archivo se escribe al final, ya con las traducciones, y solo con lo que cambió.
+  ctx.waitUntil(traduce().catch((e) => console.error('traducir', String(e)))
+    .then(() => (env.DB ? archiva(env.DB, s) : null))
+    .then((r) => { if (r && r.guardadas + r.cerradas) console.log('archivo', JSON.stringify(r)); }, (e) => console.error('archivo', String(e))));
   return json({ ok: true, alerts: s.alerts.length, generated_at: s.generated_at }, 'no-store');
 }
 
@@ -358,6 +373,85 @@ async function lista(request: Request, env: Env, ruta: string, url: URL): Promis
   return fallo(404, 'Ruta no encontrada.');
 }
 
+// ---------------------------------------------------------------------------
+// Páginas con el contenido en el HTML. Cada una parte de su archivo estático; si algo falla, se sirve tal cual.
+// ---------------------------------------------------------------------------
+const base = (env: Env, url: URL, ruta: string) => env.ASSETS.fetch(new Request(new URL(ruta, url.origin), { headers: { accept: 'text/html' } }));
+const nombres = (s: Snapshot | null) => { const m = new Map((s?.sources ?? []).map((f) => [f.id, f.name])); return (id: string) => m.get(id) ?? id; };
+const noEsta = async (env: Env, url: URL) => { const r = await base(env, url, '/404'); const h = new Headers(r.headers); h.delete('etag'); h.set('Cache-Control', 'no-store'); return new Response(r.body, { status: 404, headers: h }); };
+
+// La instantánea, lista para ir dentro de la página (el navegador la lee en vez de pedirla otra vez).
+async function conAlertas(env: Env, url: URL, ruta: string, snap: { texto: string; datos: Snapshot } | null): Promise<Response> {
+  const pagina = await base(env, url, ruta);
+  if (!snap || !pagina.ok) return pagina;
+  const s = snap.datos, nombre = nombres(s);
+  const edad = Math.max(0, Math.round((Date.now() - Date.parse(s.generated_at)) / 60000));
+  const texto: Record<string, string> = { '#actualizado': `Actualizado ${edad < 1 ? 'hace un momento' : edad < 60 ? `hace ${edad} min` : `hace ${Math.round(edad / 60)} h`} · ${s.counts.sources_ok} de ${s.counts.sources_total} fuentes` };
+  const html: Record<string, string> = {};
+  if (ruta === '/') {
+    html['#lista-hoy'] = s.alerts.filter((a) => !a.stale && a.status === 'active').slice(0, 4).map((a) => renglonHoy(a, nombre)).join('');
+    texto['#ver-todas'] = `Ver las ${s.alerts.length} alertas`;
+  } else html['#lista-alertas'] = s.alerts.filter((a) => ORDEN[a.severity] <= 2).slice(0, 14).map((a) => tarjeta(a, nombre)).join('');
+  return reescribe(pagina, { html, texto, datos: snap.texto }, 'public, max-age=60');
+}
+
+async function paginaAlerta(env: Env, url: URL, slug: string, s: Snapshot | null): Promise<Response> {
+  if (!SLUG_VALIDO.test(slug)) return noEsta(env, url);
+  let a: Guardada | undefined, estado: Estado = { activa: true };
+  const viva = s?.alerts.find((x) => slugDe(x) === slug);
+  if (viva) { const f = s!.sources.find((x) => x.id === viva.source); a = { ...viva, source_name: f?.name, source_url: f?.url, source_license: f?.license }; }
+  let sev = viva ? ORDEN[viva.severity] ?? 4 : 4;
+  if (!a && env.DB) {
+    const fila = await porSlug(env.DB, slug).catch(() => null);
+    if (fila) {
+      try { a = JSON.parse(fila.datos) as Guardada; } catch { /* fila ilegible: se trata como inexistente */ }
+      // Si la fila aún no se marca como cerrada pero ya no viene en la instantánea, se toma la última lectura como cierre.
+      estado = { activa: false, cerrada: fila.cerrada ?? s?.generated_at ?? fila.actualizada, sevMax: fila.sev_max, actualizada: fila.actualizada };
+      sev = fila.sev_max;
+    }
+  }
+  if (!a) return noEsta(env, url);
+  // La dirección canónica siempre es la de producción, también en el preview, para que no compitan en buscadores.
+  const canonical = `${SITIO}/alerta/${slug}`;
+  return reescribe(await base(env, url, '/alerta'), {
+    titulo: a.title_es ?? a.title, descripcion: descripcionDe(a), canonical, articulo: true, noindex: !indexable(sev),
+    html: { '#ficha': ficha(a, estado) }, ld: ldAlerta(a, estado, SITIO, canonical),
+  }, estado.activa ? 'public, max-age=300' : 'public, max-age=3600');
+}
+
+async function paginaArchivo(env: Env, url: URL, ruta: string, s: Snapshot | null): Promise<Response> {
+  const todos = meses();
+  const mes = ruta === '/archivo' ? todos[0] : ruta.slice('/archivo/'.length);
+  if (!todos.includes(mes) || !env.DB) return noEsta(env, url);
+  const filas = await delMes(env.DB, mes);
+  const propia = ruta === '/archivo';
+  return reescribe(await base(env, url, '/archivo'), {
+    ...(propia ? {} : { titulo: `Archivo de alertas de ${nombreMes(mes)}`, descripcion: `Alertas de Network Alert vistas por primera vez en ${nombreMes(mes)}: fallas en ataque, incidentes de plataformas y cortes de Internet, cada una con su página y su fuente.`, canonical: `${SITIO}/archivo/${mes}` }),
+    html: { '#archivo-lista': listaArchivo(filas, nombres(s)), '#archivo-meses': navMeses(mes) },
+    texto: { '#archivo-mes': `${nombreMes(mes)} · ${filas.length} ${filas.length === 1 ? 'alerta' : 'alertas'}` },
+  }, 'public, max-age=600');
+}
+
+// El sitemap recorre todo el archivo: se guarda seis horas en la caché de Cloudflare para no repetir la consulta.
+async function sitemapAlertas(env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (!env.DB) return fallo(503, 'Archivo no disponible.');
+  const cache = (caches as unknown as { default: Cache }).default, llave = new Request(`${SITIO}/__sitemap-alertas/v1`);
+  const previa = await cache.match(llave).catch(() => undefined);
+  if (previa) return previa;
+  const res = new Response(sitemap(SITIO, await paraSitemap(env.DB)), { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=21600', 'X-Content-Type-Options': 'nosniff' } });
+  ctx.waitUntil(cache.put(llave, res.clone()).catch(() => {}));
+  return res;
+}
+
+async function pagina(env: Env, ctx: ExecutionContext, url: URL, ruta: string, snap: { texto: string; datos: Snapshot } | null): Promise<Response | null> {
+  if (ruta === '/' || ruta === '/alertas') return conAlertas(env, url, ruta, snap);
+  if (ruta === '/alerta') return Response.redirect(`${url.origin}/alertas`, 301);
+  if (ruta.startsWith('/alerta/')) return paginaAlerta(env, url, ruta.slice('/alerta/'.length), snap?.datos ?? null);
+  if (ruta === '/archivo' || ruta.startsWith('/archivo/')) return paginaArchivo(env, url, ruta, snap?.datos ?? null);
+  if (ruta === '/sitemap-alertas.xml') return sitemapAlertas(env, ctx);
+  return null;
+}
+
 export default {
   async scheduled(_evento: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(reloj(env).catch((e) => console.error('reloj', String(e))));
@@ -390,6 +484,11 @@ export default {
       return json({ status: !snap ? 'sin_datos' : edad! > 3600 ? 'atrasado' : 'ok', version: VERSION, hora_utc: new Date().toISOString(), generated_at: snap?.datos.generated_at ?? null, age_s: edad }, 'no-store', snap ? 200 : 503);
     }
     if (ruta === '/badge.svg') return insignia(snap?.datos ?? null);
+    if (!ruta.startsWith('/api/')) {
+      // Si escribir el contenido falla, se sirve la página estática: el sitio nunca se cae por esto.
+      try { const p = await pagina(env, ctx, url, ruta, snap); if (p) return p; }
+      catch (e) { console.error('pagina', ruta, String(e)); return env.ASSETS.fetch(request); }
+    }
     if (!snap) return fallo(503, 'Todavía no hay una instantánea publicada.', { 'Retry-After': '120' });
     const s = snap.datos;
 

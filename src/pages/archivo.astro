@@ -1,0 +1,19 @@
+---
+// Archivo de alertas por mes. El Worker escribe la lista (worker/paginas.ts) en /archivo y /archivo/AAAA-MM.
+import Base from '../layouts/Base.astro';
+---
+<Base title="Archivo de alertas" description="Todas las alertas que Network Alert ha publicado, por mes: fallas en ataque, incidentes de plataformas y cortes de Internet, cada una con su página y su fuente.">
+  <section class="banda banda--alertas" aria-labelledby="archivo-titulo">
+    <div class="container--narrow stack archivo">
+      <header class="cabecera-banda">
+        <p class="eyebrow">Archivo</p>
+        <h1 id="archivo-titulo" class="display display--600">Alertas <em>anteriores</em></h1>
+        <p class="meta mono" id="archivo-mes"></p>
+        <p class="ink-2">Lo que estuvo activo y ya no aparece en la lista del día sigue aquí, con su fuente. El archivo empieza en noviembre de 2026; se guardan las alertas de gravedad media, alta y crítica. Los días van en hora universal (UTC).</p>
+      </header>
+      <nav class="cluster" id="archivo-meses" aria-label="Meses"></nav>
+      <div class="stack" id="archivo-lista"><p class="vacio">El archivo no está disponible en este momento. Las alertas activas están en <a href="/alertas">Alertas</a>.</p></div>
+      <p class="meta">Para ver solo lo activo: <a href="/alertas">Alertas</a>. Los mismos datos, por <a href="/api">API</a> y <a href="/feed.xml">RSS</a>.</p>
+    </div>
+  </section>
+</Base>

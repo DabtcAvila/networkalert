@@ -17,5 +17,6 @@ export default defineConfig({
   ],
   // Los <script> de componentes salen como archivo externo (la CSP no permite scripts inline).
   vite: { build: { assetsInlineLimit: 0 } },
-  integrations: [sitemap({ filter: (page) => !page.includes('/apoyar/gracias') })],
+  // /alerta es solo la página base de las alertas; sus direcciones reales van en el sitemap que arma el Worker.
+  integrations: [sitemap({ filter: (page) => !page.includes('/apoyar/gracias') && !/\/alerta\/?$/.test(page), customSitemaps: ['https://networkalert.dev/sitemap-alertas.xml'] })],
 });

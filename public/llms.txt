@@ -4,6 +4,7 @@
 
 Cada alerta incluye:
 - Enlace a su fuente primaria (`url`), siempre https
+- Página permanente en Network Alert (`page`), con el resumen en español, qué hacer y los datos; sigue abierta cuando la alerta deja de estar activa
 - Severidad normalizada: critical, high, medium, low, info
 - Fecha de publicación en la fuente y fecha en que Network Alert la vio por primera vez (`first_seen`)
 - Licencia de la fuente (ver `sources[].license`)
@@ -24,6 +25,7 @@ Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vuln
 
 ## Páginas
 
+- [Archivo de alertas](https://networkalert.dev/archivo): todas las alertas publicadas, por mes, cada una con su página
 - [Qué vigilar](https://networkalert.dev/guia): catorce puntos para quien mantiene sitios
 - [Fuentes y licencias](https://networkalert.dev/fuentes)
 - [Metodología](https://networkalert.dev/metodologia): criterios de severidad y fórmula del nivel
@@ -34,3 +36,4 @@ Lo que estos datos NO muestran: fallas locales de un proveedor de Internet, vuln
 - [RSS](https://networkalert.dev/feed.xml)
 - [JSON Feed](https://networkalert.dev/feed.json)
 - [Sitemap](https://networkalert.dev/sitemap-index.xml)
+- [Sitemap de alertas](https://networkalert.dev/sitemap-alertas.xml)

@@ -8,8 +8,10 @@
     "binding": "ASSETS",
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page",
-    // Solo lo dinámico pasa por el Worker; las páginas se sirven como assets (gratis y sin límite de invocaciones).
-    "run_worker_first": ["/api/*", "/health", "/feed.xml", "/feed.json", "/badge.svg"]
+    // Solo lo dinámico pasa por el Worker; las demás páginas se sirven como assets (gratis y sin límite de invocaciones).
+    // La portada y /alertas pasan por el Worker para llevar las alertas escritas en el HTML; a cambio ya no piden
+    // la instantánea aparte, así que cada visita sigue costando una sola invocación.
+    "run_worker_first": ["/api/*", "/health", "/feed.xml", "/feed.json", "/badge.svg", "/", "/alertas", "/alerta", "/alerta/*", "/archivo", "/archivo/*", "/sitemap-alertas.xml"]
   },
   "routes": [{ "pattern": "networkalert.dev", "custom_domain": true }],
   "workers_dev": false,
@@ -43,7 +45,7 @@
         "binding": "ASSETS",
         "html_handling": "drop-trailing-slash",
         "not_found_handling": "404-page",
-        "run_worker_first": ["/api/*", "/health", "/feed.xml", "/feed.json", "/badge.svg"]
+        "run_worker_first": ["/api/*", "/health", "/feed.xml", "/feed.json", "/badge.svg", "/", "/alertas", "/alerta", "/alerta/*", "/archivo", "/archivo/*", "/sitemap-alertas.xml"]
       },
       "kv_namespaces": [{ "binding": "NA_KV", "id": "161767bc071e4fee8f0a0bb31e5fa05e" }],
       "ratelimits": [

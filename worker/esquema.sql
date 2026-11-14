@@ -45,3 +45,25 @@ CREATE TABLE IF NOT EXISTS historial (
   revisiones INTEGER NOT NULL DEFAULT 0,-- veces que el reloj (cada 5 min) miró la edad del dato
   atrasadas INTEGER NOT NULL DEFAULT 0  -- de esas, cuántas con el dato de más de 30 minutos
 );
+
+-- Archivo de alertas: una fila por alerta desde la primera vez que se ve; no se borra cuando la fuente la retira.
+-- De aquí salen las páginas /alerta/<slug>, /archivo y el sitemap de alertas (ver worker/archivo.ts).
+CREATE TABLE IF NOT EXISTS alertas (
+  id TEXT PRIMARY KEY,                  -- identificador de la alerta (los episodios repetidos llevan el día en que empezaron)
+  slug TEXT NOT NULL,                   -- parte final de la dirección de su página
+  fuente TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  sev INTEGER NOT NULL,                 -- severidad de la última lectura: 0 crítica … 4 informativa
+  sev_max INTEGER NOT NULL,             -- la más grave que llegó a tener
+  paises TEXT NOT NULL DEFAULT '',      -- ',MX,US,' para buscar por país
+  publicada TEXT NOT NULL,              -- fecha que da la fuente
+  primera TEXT NOT NULL,                -- cuándo la vio Network Alert por primera vez
+  actualizada TEXT NOT NULL,            -- última lectura en que cambió
+  cerrada TEXT,                         -- lectura en que dejó de aparecer; NULL = sigue activa
+  titulo TEXT NOT NULL,
+  huella TEXT NOT NULL,                 -- resumen del contenido, para no reescribir lo que no cambió
+  datos TEXT NOT NULL                   -- JSON de la alerta como se vio la última vez
+);
+CREATE INDEX IF NOT EXISTS alertas_slug ON alertas (slug);
+CREATE INDEX IF NOT EXISTS alertas_primera ON alertas (primera);
+CREATE INDEX IF NOT EXISTS alertas_abiertas ON alertas (cerrada) WHERE cerrada IS NULL;

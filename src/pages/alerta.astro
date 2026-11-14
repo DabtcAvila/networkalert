@@ -1,0 +1,12 @@
+---
+// Página base de cada alerta. El Worker la sirve en /alerta/<slug> y escribe título, descripción y contenido
+// (worker/paginas.ts). Sola no se publica: /alerta redirige a /alertas y no entra al sitemap.
+import Base from '../layouts/Base.astro';
+---
+<Base title="Alerta" description="Detalle de una alerta de Network Alert, con su fuente enlazada.">
+  <section class="banda banda--alertas">
+    <div class="container--narrow stack" id="ficha">
+      <p class="vacio">Esta alerta no se pudo cargar. Vuelve a <a href="/alertas">las alertas</a>.</p>
+    </div>
+  </section>
+</Base>

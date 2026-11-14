@@ -60,6 +60,7 @@ test "$(curl -s https://networkalert.dev/api/v1/status | jq -r .status.level)" !
   "summary_es": "…",             // traducción automática; puede faltar
   "action": "…",                 // qué hacer, en español; puede faltar
   "url": "https://…",            // fuente primaria, siempre https
+  "page": "https://networkalert.dev/alerta/…", // página permanente de la alerta en Network Alert
   "published": "2026-11-12T00:00:00.000Z",
   "first_seen": "2026-11-12T14:20:03.000Z",
   "escalated_at": "…",           // si ya existía y subió a alta o crítica; puede faltar

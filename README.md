@@ -8,10 +8,11 @@
 |---|---|---|
 | Recolector | `ingest/run.mjs`, `ingest/fuentes.mjs` | Lee las fuentes, normaliza y arma la instantánea. Sin dependencias. Corre en GitHub Actions. |
 | Worker | `worker/index.ts` | API `/api/v1/*`, RSS, JSON Feed, insignia y recepción de la instantánea (KV). |
+| Archivo | `worker/archivo.ts`, `worker/paginas.ts` | Guarda cada alerta en D1 la primera vez que se ve y sirve su página (`/alerta/<slug>`), el archivo por mes (`/archivo`) y el sitemap de alertas. La portada y `/alertas` salen con las alertas ya escritas en el HTML. |
 | Sitio | `src/` (Astro estático) | Panel, guía, fuentes, metodología, API, apoyar. |
 | Vigía privado | `ingest/vigia.mjs` | Revisa tus propios dominios (lista en `dominios.txt`, fuera del repo). |
 
-Todo corre en planes gratuitos: Cloudflare Workers con assets estáticos, un espacio KV (una escritura cada 10 min) y GitHub Actions de repositorio público.
+Todo corre en planes gratuitos: Cloudflare Workers con assets estáticos, un espacio KV (una escritura cada 10 min), una base D1 (el archivo solo escribe lo que cambió en cada lectura) y GitHub Actions de repositorio público.
 
 ## Desarrollo
 

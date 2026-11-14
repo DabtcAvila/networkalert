@@ -4,7 +4,7 @@ import { leeLista } from './lista-local';
 // Panel del Inicio: lee la instantánea pública y pinta nivel, cifras, alertas, mapa y plataformas.
 // Todo el texto entra con textContent (los títulos vienen de terceros); nada de innerHTML con datos.
 
-type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
+type Alerta = { id: string; source: string; category: string; severity: string; title: string; title_es?: string; summary?: string; summary_es?: string; action?: string; url: string; page?: string; published: string; first_seen: string; escalated_at?: string; status: string; countries: string[]; tags: string[]; stale?: boolean; extra?: { cve?: string; epss?: { score: number }; ransomware?: boolean; cvss?: number; max_drop_pct?: number } };
 type Plataforma = { id: string; name: string; group: string; url: string; indicator: string; description: string; incidents: number };
 type Fuente = { id: string; name: string; ok: boolean | null };
 type Snapshot = { generated_at: string; status: { level: string; points: number; factors: Record<string, number> }; counts: { total: number; by_category: Record<string, number>; platforms_degraded: number; platforms_total: number; countries_affected: number; sources_ok: number; sources_total: number }; context: { infocon?: string | null }; platforms: Plataforma[]; countries: Record<string, { alerts: number; severity: string }>; alerts: Alerta[]; sources: Fuente[] };
@@ -35,6 +35,12 @@ const hace = (iso: string) => {
 };
 // Solo se enlaza a https: una fuente comprometida no puede colar un javascript: en el panel.
 const enlaceSeguro = (u: string) => (/^https:\/\//.test(u) ? u : '#');
+// Cada alerta tiene su página en este sitio (`page`); la fuente queda a un clic desde la tarjeta y desde esa página.
+// Si la instantánea aún no trae `page`, el título lleva a la fuente como antes.
+function propia(a: Alerta): string | null {
+  try { const u = a.page ? new URL(a.page) : null; return u && u.pathname.startsWith('/alerta/') ? u.pathname : null; } catch { return null; }
+}
+const enlaceTitulo = (a: Alerta): Record<string, string> => { const p = propia(a); return p ? { href: p } : { href: enlaceSeguro(a.url), target: '_blank', rel: 'noopener noreferrer' }; };
 
 // Conteo animado de una cifra («82», «9/25»): solo el primer número corre, y solo la primera vez que se ve.
 const contado = new WeakSet<HTMLElement>();
@@ -63,7 +69,8 @@ function pintaDestacada() {
   cab.textContent = `Lo más urgente · ${iDest + 1} de ${destacadas.length}`;
   t.textContent = a.title_es ?? a.title;
   sub.textContent = `${SEV[a.severity] ?? ''} · ${datos?.sources.find((f) => f.id === a.source)?.name ?? a.source} · ${hace(a.published)}`;
-  caja.href = enlaceSeguro(a.url); caja.target = '_blank'; caja.rel = 'noopener noreferrer';
+  const p = propia(a);
+  if (p) { caja.href = p; caja.removeAttribute('target'); caja.removeAttribute('rel'); } else { caja.href = enlaceSeguro(a.url); caja.target = '_blank'; caja.rel = 'noopener noreferrer'; }
   t.classList.remove('entra'); barra.classList.remove('corre'); void barra.offsetWidth; t.classList.add('entra');
   clearTimeout(relojDest);
   if (destacadas.length > 1 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && !document.querySelector('.portada--quieta')) {
@@ -120,11 +127,11 @@ function tarjeta(a: Alerta): HTMLLIElement {
     h('p', { class: 'alerta__cab' },
       h('span', { class: 'sev' }, SEV[a.severity] ?? a.severity),
       h('span', {}, CAT[a.category] ?? a.category),
-      h('span', {}, datos?.sources.find((f) => f.id === a.source)?.name ?? a.source),
+      h('a', { class: 'alerta__fuente', href: enlaceSeguro(a.url), target: '_blank', rel: 'noopener noreferrer' }, datos?.sources.find((f) => f.id === a.source)?.name ?? a.source),
       h('time', { datetime: a.published }, hace(a.published)),
       nuevo && h('span', { class: 'tag tag--nuevo' }, 'Nuevo'),
       subio && h('span', { class: 'tag tag--nuevo', title: 'Ya estaba en la lista con menor gravedad' }, 'Subió de nivel')),
-    h('h3', { class: 'alerta__titulo' }, h('a', { href: enlaceSeguro(a.url), rel: 'noopener noreferrer', target: '_blank', ...(a.title_es ? { title: `Original: ${a.title.trim()}` } : {}) }, a.title_es ?? a.title)),
+    h('h3', { class: 'alerta__titulo' }, h('a', { ...enlaceTitulo(a), ...(a.title_es ? { title: `Original: ${a.title.trim()}` } : {}) }, a.title_es ?? a.title)),
     !!a.summary && h('p', { class: 'alerta__resumen', ...(a.summary_es ? { title: `Original: ${a.summary}` } : {}) }, a.summary_es ?? a.summary),
     !!a.action && h('p', { class: 'alerta__accion' }, h('strong', {}, 'Qué hacer: '), a.action),
     h('p', { class: 'alerta__pie' }, ...pie));
@@ -158,7 +165,7 @@ function pintaHoy(s: Snapshot) {
   const top = s.alerts.filter((a) => !a.stale && a.status === 'active').slice(0, 4);
   ul.replaceChildren(...top.map((a) => h('li', { class: 'hoy__fila', 'data-sev': a.severity },
     h('span', { class: 'sev' }, SEV[a.severity] ?? a.severity),
-    h('a', { class: 'hoy__titulo', href: enlaceSeguro(a.url), target: '_blank', rel: 'noopener noreferrer' }, a.title_es ?? a.title),
+    h('a', { class: 'hoy__titulo', ...enlaceTitulo(a) }, a.title_es ?? a.title),
     h('span', { class: 'hoy__meta' }, `${s.sources.find((f) => f.id === a.source)?.name ?? a.source} · ${hace(a.published)}`))));
   const todas = $('ver-todas'); if (todas) todas.textContent = `Ver las ${s.alerts.length} alertas`;
 }
@@ -207,6 +214,11 @@ function pintaPlataformas(s: Snapshot) {
 
 function pinta() { if (!datos) return; pintaNivel(datos); pintaCuentas(datos); pintaHoy(datos); pintaAlertas(datos); pintaMapa(datos); pintaPlataformas(datos); }
 
+// La página llega con la instantánea dentro (la escribe el Worker): la primera pintada no pide nada a la red.
+function incluida(): Snapshot | null {
+  try { const t = document.getElementById('na-datos')?.textContent; return t ? (JSON.parse(t) as Snapshot) : null; } catch { return null; }
+}
+
 async function carga() {
   try {
     const r = await fetch('/api/v1/snapshot.json', { headers: { accept: 'application/json' } });
@@ -231,7 +243,8 @@ document.querySelectorAll('.chip[data-filtro]').forEach((x) => x.setAttribute('a
 { const b = $<HTMLInputElement>('buscar'); if (b && busca) b.value = busca; }
 $('ver-mas')?.addEventListener('click', () => { limite += 20; if (datos) pintaAlertas(datos); });
 
-void carga();
+datos = incluida();
+if (datos) pinta(); else void carga();
 // La marca «Nuevo» compara contra la visita anterior; se guarda al salir para que dure toda la sesión.
 window.addEventListener('pagehide', () => { try { localStorage.setItem('na-visita', String(Date.now())); } catch {} });
 setInterval(() => { if (!document.hidden) void carga(); }, 120_000);

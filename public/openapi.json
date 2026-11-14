@@ -824,6 +824,11 @@
       "format": "uri",
       "description": "Fuente primaria."
      },
+     "page": {
+      "type": "string",
+      "format": "uri",
+      "description": "Página permanente de la alerta en Network Alert (resumen en español, qué hacer y datos). Sigue abierta cuando la alerta deja de estar activa."
+     },
      "published": {
       "type": "string",
       "format": "date-time",

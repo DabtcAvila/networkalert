@@ -20,7 +20,7 @@ const filtros = [
       </header>
       <p class="aviso aviso--error" id="aviso-error" hidden>No se pudieron leer las alertas. Revisa el <a href="/health">estado del servicio</a>.</p>
       <p class="aviso" id="aviso-atraso" hidden>El dato tiene más de 45 minutos; es lo último conocido.</p>
-      <noscript><p class="aviso">Esta página necesita JavaScript. Los mismos datos están en <a href="/feed.xml">RSS</a> y en <a href="/api/v1/alerts">la API</a>.</p></noscript>
+      <noscript><p class="aviso">Sin JavaScript ves las alertas más importantes; los filtros y el buscador lo necesitan. Todo lo demás está en el <a href="/archivo">archivo</a>, el <a href="/feed.xml">RSS</a> y <a href="/api/v1/alerts">la API</a>.</p></noscript>
       <div class="filtros filtros--pegajosos" role="group" aria-label="Filtrar alertas">
         {filtros.map((f, i) => <button class="chip" type="button" data-filtro={f.k} aria-pressed={i === 0 ? 'true' : 'false'}>{f.t} <span class="chip__n" data-cuenta={f.k}></span></button>)}
         <input class="buscador" id="buscar" type="search" placeholder="Busca lo que usas: next, wordpress, CVE-2026…" aria-label="Buscar en las alertas" autocomplete="off" spellcheck="false" />
@@ -29,7 +29,7 @@ const filtros = [
       <p class="vacio" id="alertas-vacio" hidden></p>
       <p class="center" id="lista-editar" hidden><a class="enlace-flecha" href="/mi-lista">Marcar lo que uso</a></p>
       <p class="center"><button class="btn btn--secondary" id="ver-mas" type="button" hidden>Ver más</button></p>
-      <p class="meta">Los títulos se traducen de forma automática; el original está en la fuente. Cómo se ordenan: <a href="/metodologia">Metodología</a>.</p>
+      <p class="meta">Los títulos se traducen de forma automática; el original está en la fuente. Cómo se ordenan: <a href="/metodologia">Metodología</a>. Las que ya no están activas: <a href="/archivo">Archivo</a>.</p>
     </div>
   </section>
 </Base>

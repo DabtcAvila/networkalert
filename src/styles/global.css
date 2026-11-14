@@ -1002,3 +1002,28 @@ a.chip:hover { text-decoration: none; }
 .lista__reglas { list-style: none; display: grid; gap: var(--s-2); color: var(--ink-2); font-size: var(--fs-200); }
 .lista__reglas li { padding-left: var(--s-5); position: relative; }
 .lista__reglas li::before { content: '✓'; position: absolute; left: 0; color: var(--sev-ok); font-weight: 700; }
+
+/* Página de una alerta (/alerta/<slug>) y archivo por mes. El contenido lo escribe el Worker (worker/paginas.ts). */
+.alerta__fuente { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.alerta__fuente::after { content: ' ↗'; }
+.alerta__fuente:hover { color: var(--violeta); text-decoration-color: currentColor; }
+.migas { display: flex; flex-wrap: wrap; gap: var(--s-2); font-size: var(--fs-200); color: var(--muted); }
+.migas a { color: var(--muted); }
+.migas a:hover { color: var(--violeta); }
+.ficha { --c: var(--sev-info); }
+.ficha[data-sev='critical'] { --c: var(--sev-critical); } .ficha[data-sev='high'] { --c: var(--sev-high); } .ficha[data-sev='medium'] { --c: var(--sev-medium); } .ficha[data-sev='low'] { --c: var(--sev-low); }
+.ficha__titulo { text-wrap: balance; overflow-wrap: anywhere; }
+.ficha h2 { font-weight: 700; font-size: var(--fs-500); line-height: 1.15; letter-spacing: -0.02em; }
+.ficha__texto { font-size: var(--fs-400); line-height: 1.55; color: var(--ink-2); overflow-wrap: anywhere; }
+.ficha__texto.alerta__accion { color: var(--ink); }
+.ficha .meta { overflow-wrap: anywhere; }
+.ficha__datos { display: grid; border: 1px solid var(--line); border-radius: var(--radio); background: var(--surface); }
+.ficha__datos > div { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); font-size: var(--fs-200); }
+.ficha__datos > div:last-child { border-bottom: 0; }
+.ficha__datos dt { color: var(--muted); }
+.ficha__datos dd { overflow-wrap: anywhere; }
+.archivo__dia { font-weight: 700; font-size: var(--fs-400); letter-spacing: -0.01em; }
+.archivo .hoy__titulo { white-space: normal; }
+.archivo .hoy__fila { animation: none; }
+.chip[aria-current='page'] { background: var(--violeta); color: #fff; border-color: var(--violeta); }
+a.chip { text-decoration: none; }
