@@ -95,7 +95,7 @@ export function ficha(a: Guardada, e: Estado): string {
   return `<nav class="migas" aria-label="Ruta"><a href="/alertas">Alertas</a><span aria-hidden="true">›</span><a href="/archivo/${esc(mes)}">${esc(nombreMes(mes))}</a></nav>`
     + `<article class="ficha stack" data-sev="${esc(a.severity)}">`
     + `<header class="stack--sm stack"><p class="alerta__cab"><span class="sev">${esc(SEV[a.severity] ?? a.severity)}</span><span>${esc(CAT[a.category] ?? a.category)}</span><span>${esc(fuente)}</span><time datetime="${esc(a.published)}">${fecha(a.published)}</time></p>`
-    + `<h1 class="display display--600 ficha__titulo">${esc(a.title_es ?? a.title)}</h1>${a.title_es ? `<p class="meta" lang="en">Título original: ${esc(a.title.trim())}</p>` : ''}</header>`
+    + `<h1 class="display display--600 ficha__titulo">${esc(a.title_es ?? a.title)}</h1>${a.title_es && a.title_es.trim() !== a.title.trim() ? `<p class="meta" lang="en">Título original: ${esc(a.title.trim())}</p>` : ''}</header>`
     + `<p class="aviso">${estado}</p>`
     // En los avisos de paquetes el resumen es la misma lista que la tabla de abajo: no se repite.
     + (a.summary && !(paquetes.length && a.source === 'github-advisories') ? `<section class="stack--sm stack"><h2>Qué pasó</h2><p class="ficha__texto">${esc(a.summary_es ?? a.summary)}</p>${a.summary_es ? `<p class="meta" lang="en">Texto original: ${esc(a.summary)}</p>` : ''}</section>` : '')
