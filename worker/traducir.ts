@@ -48,7 +48,7 @@ const RETOQUES: [RegExp, string][] = [
   [/\bla computación de la raíz\b/g, 'el cálculo de la raíz'], [/\bcomputación de la raíz\b/g, 'cálculo de la raíz'], [/\bla cálculo\b/g, 'el cálculo'],
   [/\bEvación\b/g, 'Evasión'], [/\bevación\b/g, 'evasión'], [/\bconbinador\b/g, 'combinador'],
   [/\bde la oficina trasera\b/g, 'del panel de administración'], [/\bla oficina trasera\b/g, 'el panel de administración'], [/\boficina trasera\b/g, 'panel de administración'],
-  [/\bisolación\b/g, 'aislamiento'], [/\bIsolación\b/g, 'Aislamiento'],
+  [/\bla isolación\b/g, 'el aislamiento'], [/\bla aislamiento\b/g, 'el aislamiento'], [/\bisolación\b/g, 'aislamiento'], [/\bIsolación\b/g, 'Aislamiento'],
 ];
 const pule = (es: string) => RETOQUES.reduce((t, [de, a]) => t.replace(de, a), es);
 
