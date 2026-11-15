@@ -97,6 +97,9 @@ async function aplica(db: D1Database, id: string, l: Lista): Promise<void> {
     ...l.dominios.filter((d) => !previos.includes(d)).flatMap((d) => [
       db.prepare('INSERT OR IGNORE INTO vigilancias (sus, dominio) VALUES (?, ?)').bind(id, d),
       db.prepare('INSERT OR IGNORE INTO dominios (dominio) VALUES (?)').bind(d),
+      // Si el dominio ya lo vigilaba otra persona, se pone al frente de la fila: quien llega recibe su primera
+      // revisión en la siguiente vuelta y no hasta la revisión diaria (podían pasar casi 24 horas).
+      db.prepare('UPDATE dominios SET revisado = NULL WHERE dominio = ?').bind(d),
     ]),
     db.prepare('DELETE FROM dominios WHERE dominio NOT IN (SELECT dominio FROM vigilancias)'),
   ];
