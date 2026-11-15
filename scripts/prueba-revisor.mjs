@@ -33,8 +33,9 @@ const CASOS = [
   { d: 'expired.badssl.com', es: { web: 'urgent', cert: 'urgent' }, sin: ['headers', 'security_txt', 'www', 'http'], titulo: { web: /candado/i } },
   { d: 'self-signed.badssl.com', es: { web: 'urgent' }, sin: ['headers', 'security_txt', 'www', 'http'], titulo: { web: /candado/i } },
   { d: 'wrong.host.badssl.com', es: { web: 'urgent' }, sin: ['headers', 'security_txt', 'www', 'http'], titulo: { web: /candado/i } },
-  // No tiene https.
-  { d: 'neverssl.com', es: { web: 'urgent' }, sin: ['headers', 'security_txt', 'www', 'http', 'cert'], titulo: { web: /no abre/i } },
+  // Nunca contesta (dominio hecho para eso): sitio caído, y sin opinar de lo que no se pudo leer.
+  // (neverssl.com se quitó: a veces abre con candado y a veces no, así que no sirve como caso fijo.)
+  { d: 'blackhole.webpagetest.org', es: { web: 'urgent' }, sin: ['headers', 'security_txt', 'www', 'http', 'cert'], titulo: { web: /no abre/i } },
   // No existe.
   { d: 'no-existe-networkalert-prueba.com', estado: 404 },
 ];
