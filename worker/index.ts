@@ -312,7 +312,7 @@ async function revisa(request: Request, env: Env, ctx: ExecutionContext, url: UR
   const dado = url.searchParams.get('domain') ?? '';
   const dominio = normaliza(dado);
   if (!dominio) return fallo(422, [{ type: 'domain', loc: ['query', 'domain'], msg: 'Escribe un dominio público, por ejemplo: ejemplo.com', input: dado.slice(0, 80) }]);
-  const llave = new Request(`${SITIO}/__revisar/v2/${dominio}`);
+  const llave = new Request(`${SITIO}/__revisar/v4/${dominio}`);
   const cache = (caches as unknown as { default: Cache }).default;
   const previa = await cache.match(llave).catch(() => undefined);
   if (previa) return previa;

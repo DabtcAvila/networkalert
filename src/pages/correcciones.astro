@@ -24,6 +24,20 @@ const correcciones: { fecha: string; decia: string; dice: string; deteccion: str
     deteccion: 'revisión propia al activar la fuente Cloudflare Radar',
     remedio: 'un registro de Radar sin fecha de fin solo cuenta como en curso durante 24 horas, y «alta» queda solo para un país entero sin conexión',
   },
+  {
+    fecha: '2026-11-14',
+    decia: '«Revisa tu dominio» y los avisos de «Mi lista» decían «Falta el registro DMARC» en subdominios cuyo dominio principal sí lo tiene, y para arreglarlo señalaban un menú de Cloudflare aunque el dominio no usara Cloudflare. Con un sitio caído también decían «No dice a quién avisar si alguien encuentra una falla», sin haber podido leerlo.',
+    dice: 'Si el subdominio no tiene regla propia se usa la del dominio principal y se dice de dónde viene. La indicación para agregarla ya no nombra a ningún proveedor. Lo que no se pudo leer no se afirma.',
+    deteccion: 'revisión propia de un aviso enviado por correo',
+    remedio: 'la regla DMARC se busca subiendo un nivel a la vez, como hacen los servidores de correo, y el archivo security.txt solo se reporta cuando el sitio abrió',
+  },
+  {
+    fecha: '2026-11-14',
+    decia: '«Revisa tu dominio» tenía tres errores más. A un sitio con el candado vencido o mal instalado le decía «El sitio responde con error 526. Es una falla del servidor». A sitios sanos que bloquean las lecturas automáticas (google.com, por ejemplo) les ponía «Por atender: la portada responde con error 429». Y decía que la versión sin candado (http) no mandaba a la versión segura cuando sí lo hacía, pero en el segundo salto.',
+    dice: 'Un candado que no es válido se reporta como tal. Si el sitio bloquea la revisión, se dice eso y no se acusa una falla. La redirección de http se sigue completa, hasta cinco saltos. Cuando la portada no abrió, no se opina de protecciones del navegador, www ni security.txt.',
+    deteccion: 'prueba propia contra una lista fija de 13 dominios de estado conocido, creada ese día',
+    remedio: 'la lista fija (scripts/prueba-revisor.mjs, en el repositorio) se corre antes de publicar cualquier cambio del revisor; cada error nuevo se agrega ahí como caso',
+  },
 ];
 ---
 <Base title="Correcciones" description="Registro público de errores propios de Network Alert y cómo se corrigieron.">

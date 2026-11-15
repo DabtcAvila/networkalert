@@ -10,3 +10,4 @@ node_modules/
 # Lista privada de dominios vigilados y sus reportes: nunca al repo público.
 dominios.txt
 vigia/
+*.eml

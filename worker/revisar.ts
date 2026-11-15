@@ -44,6 +44,28 @@ async function dns(nombre: string, tipo: string): Promise<Dns> {
   return { status: j.Status, ad: !!j.AD, datos };
 }
 
+/**
+ * La regla DMARC de un subdominio puede venir del dominio de arriba: si `_dmarc.<nombre>` no existe, los servidores de
+ * correo suben un nivel a la vez hasta encontrar un registro (RFC 7489 y su revisión con «tree walk»).
+ * Devuelve el registro y de qué nombre salió, o null si no hay ninguno.
+ */
+async function dmarcDe(dominio: string): Promise<{ registro: string; de: string } | null> {
+  const partes = dominio.split('.');
+  for (let i = 0; i <= partes.length - 2 && i < 5; i++) {
+    const nombre = partes.slice(i).join('.');
+    const registro = (await dns(`_dmarc.${nombre}`, 'TXT')).datos.find((t) => /^v=DMARC1/i.test(t));
+    if (registro) return { registro, de: nombre };
+  }
+  return null;
+}
+
+// Esta revisión sale desde la red de Cloudflare. Cuando Cloudflare no logra hablar con el servidor del sitio no lanza un
+// error: responde él mismo con uno de estos números. No son respuestas del sitio.
+const SIN_SERVIDOR = new Set([520, 521, 522, 523, 524, 527, 530]); // no contestó o cortó la conexión
+const CANDADO_MALO = new Set([525, 526]); // contestó, pero su candado no es válido
+// El sitio contestó, pero le negó el paso a la revisión (muchos bloquean las lecturas automáticas). No prueba una falla.
+const BLOQUEO = new Set([401, 403, 429]);
+
 type Rdap = { events?: { eventAction: string; eventDate: string }[]; status?: string[]; entities?: { roles?: string[]; vcardArray?: [string, [string, unknown, string, string][]] }[] };
 // Terminaciones del registro de Google: su RDAP limita las consultas que llegan desde servidores compartidos (responde 429).
 const DE_GOOGLE = new Set(['dev', 'app', 'page', 'new', 'how', 'soy', 'foo', 'day', 'dad', 'phd', 'prof', 'esq', 'mov', 'zip', 'nexus', 'channel', 'boo', 'rsvp', 'ing', 'meme']);
@@ -106,17 +128,34 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   const lee = (url: string, init: RequestInit, ms: number) => (propio ? propio(url) : pide(url, init, ms));
   const [w, http, www, sec, a, txt, dmarc, mx, caa, reg, cert] = await Promise.all([
     intenta(async () => { const r = await lee(`https://${dominio}/`, { redirect: 'follow' }, 12_000); await r.body?.cancel(); return { status: r.status, final: r.url || `https://${dominio}/`, h: r.headers }; }),
-    intenta(async () => { if (propio) throw new Error('no aplica'); const r = await pide(`http://${dominio}/`, { redirect: 'manual' }, 8000); await r.body?.cancel(); return { status: r.status, destino: r.headers.get('location') ?? '' }; }),
+    intenta(async () => {
+      // Se siguen las redirecciones una por una (hasta 5): lo que importa es si la cadena termina con candado, no el primer salto.
+      if (propio) throw new Error('no aplica');
+      let url = `http://${dominio}/`, status = 0;
+      for (let salto = 0; salto < 5; salto++) {
+        const r = await pide(url, { redirect: 'manual' }, 6000); await r.body?.cancel();
+        status = r.status;
+        const sigue = r.headers.get('location');
+        if (status < 300 || status >= 400 || !sigue) break;
+        url = new URL(sigue, url).href;
+        if (url.startsWith('https://')) break;
+      }
+      return { status, destino: url };
+    }),
     intenta(async () => { const r = await pide(`https://www.${dominio}/`, { redirect: 'manual' }, 8000); await r.body?.cancel(); return { status: r.status, destino: r.headers.get('location') ?? '' }; }),
     intenta(async () => { const r = await lee(`https://${dominio}/.well-known/security.txt`, {}, 7000); return r.ok && /contact:/i.test((await r.text()).slice(0, 4000)); }),
-    intenta(() => dns(dominio, 'A')), intenta(() => dns(dominio, 'TXT')), intenta(() => dns(`_dmarc.${dominio}`, 'TXT')), intenta(() => dns(dominio, 'MX')), intenta(() => dns(dominio, 'CAA')),
+    intenta(() => dns(dominio, 'A')), intenta(() => dns(dominio, 'TXT')), intenta(() => dmarcDe(dominio)), intenta(() => dns(dominio, 'MX')), intenta(() => dns(dominio, 'CAA')),
     intenta(() => registro(dominio)), intenta(() => certificado(dominio, !propio)),
   ]);
   if (!fallo(a) && a.status === 3) return null; // el dominio no existe
 
   const spf = fallo(txt) ? undefined : (txt.datos.find((t) => /^v=spf1/i.test(t)) ?? null);
-  const dm = fallo(dmarc) ? undefined : (dmarc.datos.find((t) => /^v=DMARC1/i.test(t)) ?? null);
-  const politica = dm ? (dm.match(/\bp=(\w+)/i)?.[1]?.toLowerCase() ?? null) : null;
+  const dm = fallo(dmarc) ? undefined : (dmarc?.registro ?? null);
+  // Regla heredada: para los subdominios manda `sp=` si el dominio de arriba lo puso; si no, `p=`.
+  const dmDe = !fallo(dmarc) && dmarc && dmarc.de !== dominio ? dmarc.de : null;
+  const etiqueta = (k: string) => dm?.match(new RegExp(`(?:^|;)\\s*${k}\\s*=\\s*(\\w+)`, 'i'))?.[1]?.toLowerCase() ?? null;
+  const politica = dm ? ((dmDe ? etiqueta('sp') : null) ?? etiqueta('p')) : null;
+  const heredada = dmDe ? ` La regla viene de ${dmDe} y cubre también a este subdominio.` : '';
   const recibeCorreo = !fallo(mx) && mx.datos.some((m) => !/\s\.$/.test(m));
   const hostFinal = fallo(w) ? null : new URL(w.final).hostname;
   const venceCert = fallo(cert) ? null : cert.expires;
@@ -125,22 +164,32 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   const h: Hallazgo[] = [];
   const pon = (level: Nivel, key: string, title: string, action?: string) => h.push({ level, key, title, action });
 
+  // Qué se pudo ver. Lo que no se pudo leer no se afirma: las cabeceras, www y security.txt solo se juzgan si la portada abrió.
+  const st = fallo(w) ? 0 : w.status; // 0 = ni siquiera hubo respuesta
+  const caido = st === 0 || SIN_SERVIDOR.has(st);
+  const candadoMalo = CANDADO_MALO.has(st);
+  const bloqueado = BLOQUEO.has(st);
+  const legible = st > 0 && st < 400;
+
   // 1. ¿Abre?
-  if (fallo(w)) pon('urgent', 'web', 'El sitio no abre por conexión segura (https).', 'Revisa con tu proveedor de hospedaje que el sitio esté arriba y que el candado esté instalado.');
-  else if (w.status >= 500) pon('urgent', 'web', `El sitio responde con error ${w.status}.`, 'Es una falla del servidor. Revisa tu hospedaje o el último cambio que subiste.');
-  else if (w.status >= 400) pon('fix', 'web', `La portada responde con error ${w.status}.`, 'Confirma que la página de inicio exista y sea pública.');
+  if (caido) pon('urgent', 'web', 'El sitio no abre por conexión segura (https).', 'Revisa con tu proveedor de hospedaje que el sitio esté arriba y que el candado esté instalado.');
+  else if (candadoMalo) pon('urgent', 'web', 'El candado del sitio no es válido: los navegadores muestran «sitio no seguro».', 'Puede estar vencido, ser de otro dominio o estar mal instalado. Pide a tu hospedaje que lo renueve o lo reinstale.');
+  else if (bloqueado) pon('improve', 'web', `El sitio no dejó que lo revisáramos (respondió ${st}).`, 'Muchos sitios bloquean las revisiones automáticas. Ábrelo en tu navegador: si abre bien, no hay nada que hacer.');
+  else if (st >= 500) pon('urgent', 'web', `El sitio responde con error ${st}.`, 'Es una falla del servidor. Revisa tu hospedaje o el último cambio que subiste.');
+  else if (st >= 400) pon('fix', 'web', `La portada responde con error ${st}.`, 'Confirma que la página de inicio exista y sea pública.');
   else pon('ok', 'web', 'El sitio abre con candado (https).');
 
   // 2. Candado
-  if (!fallo(w) && venceCert) {
+  if (!caido && venceCert) {
     const d = dias(venceCert);
     if (d < 0) pon('urgent', 'cert', `El candado (certificado) venció hace ${-d} días.`, 'Los navegadores ya muestran «sitio no seguro». Renuévalo hoy con tu hospedaje.');
     else if (d < 7) pon('urgent', 'cert', `El candado (certificado) vence en ${d} días.`, 'Si no se renueva, los navegadores mostrarán «sitio no seguro». Renuévalo o revisa la renovación automática.');
     else if (d < 21) pon('fix', 'cert', `El candado (certificado) vence en ${d} días.`, 'Confirma que la renovación automática esté funcionando.');
     else pon('ok', 'cert', `El candado (certificado) vence en ${d} días.`);
   }
-  if (!fallo(http) && !fallo(w)) {
-    const aSeguro = http.status >= 300 && http.status < 400 && /^https:\/\//i.test(http.destino);
+  // Solo se juzga si la versión sin candado contestó con una página o una redirección; un bloqueo o un error no dicen nada.
+  if (!fallo(http) && legible && http.status < 400) {
+    const aSeguro = /^https:\/\//i.test(http.destino);
     if (aSeguro) pon('ok', 'http', 'Quien entra sin candado (http) es enviado a la versión segura.');
     else pon('fix', 'http', 'Quien entra sin candado (http) no es enviado a la versión segura.', 'Activa «forzar HTTPS» en tu hospedaje o en Cloudflare (Always Use HTTPS).');
   }
@@ -155,15 +204,15 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   if (!fallo(reg) && reg.locked === false) pon('fix', 'lock', 'El dominio no está bloqueado contra transferencias.', 'Activa el «bloqueo de transferencia» (registrar lock) donde lo compraste.');
 
   // 4. Correo
-  if (dm === null) pon('fix', 'dmarc', 'Cualquiera puede enviar correos que parecen venir de este dominio.', 'Falta el registro DMARC. Se agrega en el DNS; en Cloudflare está en Email → DMARC Management.');
-  else if (politica === 'none') pon('improve', 'dmarc', 'La protección contra correos falsos está en modo «solo observar».', 'Cuando confirmes que tu correo legítimo pasa, sube DMARC de p=none a p=quarantine.');
-  else if (dm) pon('ok', 'dmarc', 'El dominio rechaza correos falsos enviados a su nombre (DMARC).');
+  if (dm === null) pon('fix', 'dmarc', 'Cualquiera puede enviar correos que parecen venir de este dominio.', 'Falta el registro DMARC. Es un registro de texto llamado «_dmarc» que se agrega en el DNS del dominio; tu proveedor de correo te da el valor.');
+  else if (politica === 'none') pon('improve', 'dmarc', 'La protección contra correos falsos está en modo «solo observar».', `Cuando confirmes que tu correo legítimo pasa, sube DMARC de p=none a p=quarantine.${heredada}`);
+  else if (dm) pon('ok', 'dmarc', `El dominio rechaza correos falsos enviados a su nombre (DMARC${dmDe ? `, regla de ${dmDe}` : ''}).`);
   if (spf === null) pon(recibeCorreo ? 'fix' : 'improve', 'spf', 'No declara qué servidores pueden enviar correo a su nombre.', recibeCorreo ? 'Falta el registro SPF. Tu proveedor de correo te da el valor exacto.' : 'Si el dominio no envía correo, publica el registro SPF «v=spf1 -all».');
   else if (spf && /\+all/.test(spf)) pon('urgent', 'spf', 'Autoriza a todo Internet a enviar correo a su nombre.', 'El registro SPF termina en «+all». Cámbialo por «~all» o «-all».');
   else if (spf) pon('ok', 'spf', 'Declara qué servidores pueden enviar correo a su nombre (SPF).');
 
   // 5. www
-  if (!fallo(w)) {
+  if (legible && !(!fallo(www) && BLOQUEO.has(www.status))) {
     if (hostFinal === `www.${dominio}`) pon('ok', 'www', 'El dominio sin www manda a la versión con www.');
     else if (propio && (fallo(www) || www.status >= 500)) { /* no se puede probar desde dentro */ }
     else if (fallo(www)) pon('improve', 'www', 'La dirección con www no abre.', 'Quien escriba www verá un error. Agrega una redirección de www al dominio.');
@@ -173,7 +222,7 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   }
 
   // 6. Protecciones del navegador
-  if (!fallo(w)) {
+  if (legible) {
     const c = w.h, csp = c.get('content-security-policy') ?? '';
     const faltan: string[] = [];
     if (!c.get('strict-transport-security')) faltan.push('obligar siempre la conexión segura (HSTS)');
@@ -187,7 +236,8 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
   // 7. DNS y contacto
   if (!fallo(a)) { if (a.ad) pon('ok', 'dnssec', 'Sus direcciones de Internet están firmadas (DNSSEC).'); else pon('improve', 'dnssec', 'Sus direcciones de Internet no están firmadas (DNSSEC).', 'Evita que alguien desvíe a tus visitantes. Se activa con un clic en la mayoría de los proveedores de DNS.'); }
   if (!fallo(caa) && caa.datos.length === 0) pon('improve', 'caa', 'No limita quién puede emitir candados a su nombre (CAA).', 'Opcional: un registro CAA en el DNS indica qué autoridades pueden emitir certificados.');
-  if (sec !== true) pon('improve', 'security_txt', 'No dice a quién avisar si alguien encuentra una falla.', 'Publica un archivo /.well-known/security.txt con un correo de contacto.');
+  if (!legible || fallo(sec)) { /* no se pudo leer: no se afirma nada */ }
+  else if (sec !== true) pon('improve', 'security_txt', 'No dice a quién avisar si alguien encuentra una falla.', 'Publica un archivo /.well-known/security.txt con un correo de contacto.');
   else pon('ok', 'security_txt', 'Dice a quién avisar si alguien encuentra una falla (security.txt).');
 
   const ORD: Record<Nivel, number> = { urgent: 0, fix: 1, improve: 2, ok: 3 };
@@ -200,10 +250,10 @@ export async function revisar(dominio: string, propio?: (url: string) => Promise
     summary: { urgent: cuenta('urgent'), fix: cuenta('fix'), improve: cuenta('improve'), ok: cuenta('ok') },
     findings: h,
     details: {
-      web: fallo(w) ? { error: w.error } : { status: w.status, final_url: w.final },
+      web: { ...(fallo(w) ? { error: w.error } : { status: w.status, final_url: w.final }), http: fallo(http) ? null : { status: http.status, final_url: http.destino } },
       certificate: { expires: venceCert, days_left: venceCert ? dias(venceCert) : null, installed: fallo(cert) ? null : cert.installed, source: !fallo(cert) && cert.installed ? 'Leído del candado que el servidor presenta en este momento.' : 'Registro público de certificados (Certificate Transparency): es el más reciente emitido; no se pudo leer el instalado.' },
       registration: fallo(reg) ? { expires: null, error: reg.error } : { expires: reg.expires, days_left: reg.expires ? dias(reg.expires) : null, registrar: reg.registrar, locked: reg.locked },
-      email: { receives_mail: recibeCorreo, spf: spf ?? null, dmarc: dm ?? null, dmarc_policy: politica },
+      email: { receives_mail: recibeCorreo, spf: spf ?? null, dmarc: dm ?? null, dmarc_policy: politica, dmarc_from: dm ? (dmDe ?? dominio) : null },
       dns: { dnssec: fallo(a) ? null : a.ad, caa: fallo(caa) ? null : caa.datos.length > 0 },
     },
     notes: [

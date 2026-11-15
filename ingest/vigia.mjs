@@ -44,15 +44,28 @@ async function web(dominio) {
   return { status: r.status, final: r.url, servidor: h.get('server'), hsts: h.get('strict-transport-security'), csp: !!h.get('content-security-policy'), nosniff: h.get('x-content-type-options') === 'nosniff', marco: !!h.get('x-frame-options') || /frame-ancestors/.test(h.get('content-security-policy') ?? ''), referrer: !!h.get('referrer-policy') };
 }
 
+// La regla DMARC de un subdominio puede venir del dominio de arriba: se sube un nivel a la vez hasta encontrar registro.
+async function dmarcDe(dominio) {
+  const partes = dominio.split('.');
+  for (let i = 0; i <= partes.length - 2 && i < 5; i++) {
+    const nombre = partes.slice(i).join('.');
+    const r = await intenta(() => dns.resolveTxt(`_dmarc.${nombre}`));
+    const registro = Array.isArray(r) ? r.map((t) => t.join('')).find((t) => /^v=DMARC1/i.test(t)) : null;
+    if (registro) return { registro, de: nombre };
+  }
+  return null;
+}
+
 async function revisar(dominio) {
   const [w, c, r, txt, dmarc, mx, caa, sec] = await Promise.all([
     intenta(() => web(dominio)), certificado(dominio), intenta(() => rdap(dominio)),
-    intenta(() => dns.resolveTxt(dominio)), intenta(() => dns.resolveTxt(`_dmarc.${dominio}`)), intenta(() => dns.resolveMx(dominio)), intenta(() => dns.resolveCaa(dominio)),
+    intenta(() => dns.resolveTxt(dominio)), intenta(() => dmarcDe(dominio)), intenta(() => dns.resolveMx(dominio)), intenta(() => dns.resolveCaa(dominio)),
     intenta(async () => { const x = await fetch(`https://${dominio}/.well-known/security.txt`, { signal: AbortSignal.timeout(8000) }); return x.ok && /contact:/i.test(await x.text()); }),
   ]);
   const spf = Array.isArray(txt) ? txt.map((t) => t.join('')).find((t) => /^v=spf1/i.test(t)) ?? null : null;
-  const dm = Array.isArray(dmarc) ? dmarc.map((t) => t.join('')).find((t) => /^v=DMARC1/i.test(t)) ?? null : null;
-  const politica = dm?.match(/\bp=(\w+)/i)?.[1]?.toLowerCase() ?? null;
+  const dm = dmarc?.registro ?? null;
+  const etiqueta = (k) => dm?.match(new RegExp(`(?:^|;)\\s*${k}\\s*=\\s*(\\w+)`, 'i'))?.[1]?.toLowerCase() ?? null;
+  const politica = dm ? ((dmarc.de !== dominio ? etiqueta('sp') : null) ?? etiqueta('p')) : null;
   const tieneCorreo = Array.isArray(mx) && mx.some((m) => m.exchange && m.exchange !== '.');
 
   // Hallazgos: [nivel, texto]. urgente = puede tumbar o comprometer pronto; atender = cerrar en días; mejora = cuando haya tiempo.
