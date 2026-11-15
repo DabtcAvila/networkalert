@@ -21,7 +21,8 @@ const entra = [
   ] },
   { id: 'plat', t: 'Plataformas', items: [
     ['Incidentes abiertos', 'Según la página de estado oficial.'],
-    ['Severidad', 'La que declara el proveedor.'],
+    ['Severidad', 'La que declara el proveedor, con una excepción.'],
+    ['Corregido, en observación', 'Cuando el proveedor ya aplicó la corrección y solo la vigila, la alerta baja a «media» aunque la haya declarado mayor o crítica: ya no es una falla en curso. Lo que declaró el proveedor queda en la API («extra.impact»).'],
     ['Agrupación', 'Tres o más incidentes menores abiertos a la vez en una plataforma van en una sola alerta que los lista. Los altos y críticos, uno por uno.'],
     ['Cuáles mueven el nivel del día', 'Solo las de uso masivo: las que sostienen muchos sitios o cobros a la vez. Las demás se muestran y avisan igual, pero su falla no cambia el nivel. En la API cada plataforma lo dice en «counts_for_level».'],
     ['Bancos', 'Ningún banco mexicano publica una página de estado que se pueda leer. Se incluyen dos servicios que conectan con los bancos y con el SAT y reportan cuando esas conexiones fallan.'],

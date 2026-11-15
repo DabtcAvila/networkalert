@@ -434,6 +434,11 @@ const IMPACTO = { critical: 'critical', major: 'high', minor: 'medium', maintena
 
 const ACCION_PLATAFORMA = 'No depende de ti. Sigue el avance en la página de estado del proveedor y, si tus usuarios lo notan, avísales.';
 
+// Etapa «monitoring»: el proveedor ya aplicó la corrección y solo vigila que aguante. Ya no es una falla en curso, así
+// que la alerta baja a «media» aunque el proveedor la haya declarado mayor o crítica (lo declarado queda en extra.impact).
+const ACCION_OBSERVACION = 'El proveedor ya aplicó la corrección y la está vigilando. Si a ti te sigue fallando, revisa su página de estado.';
+const severidadPlataforma = (i) => (i.status === 'monitoring' && (i.impact === 'critical' || i.impact === 'major') ? 'medium' : IMPACTO[i.impact] ?? 'medium');
+
 async function statuspage(p) {
   // Las páginas clásicas exponen status + incidents/unresolved (ligeros). Las de nueva generación solo traen
   // summary.json, donde `incidents` ya son los abiertos.
@@ -446,9 +451,9 @@ async function statuspage(p) {
   }
   const incidentes = (inc.incidents ?? []).map((i) => ({
     id: `status:${p.id}:${i.id}`,
-    source: `status-${p.id}`, category: 'platform', severity: IMPACTO[i.impact] ?? 'medium',
+    source: `status-${p.id}`, category: 'platform', severity: severidadPlataforma(i),
     title: `${p.name}: ${i.name}`,
-    summary: recorta(i.incident_updates?.[0]?.body ?? ''), action: ACCION_PLATAFORMA,
+    summary: recorta(i.incident_updates?.[0]?.body ?? ''), action: i.status === 'monitoring' ? ACCION_OBSERVACION : ACCION_PLATAFORMA,
     url: i.shortlink || `${p.base}/incidents/${i.id}`,
     published: iso(i.started_at ?? i.created_at), updated: iso(i.updated_at), status: 'active',
     tags: [p.grupo, ...(i.components ?? []).slice(0, 4).map((c) => c.name)], extra: { platform: p.id, phase: i.status, impact: i.impact },

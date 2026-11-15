@@ -45,6 +45,8 @@ const RETOQUES: [RegExp, string][] = [
   [/\bel bypass\b/g, 'la evasión'], [/\bun bypass\b/g, 'una evasión'], [/\bBypass\b/g, 'Evasión'], [/\bbypass\b/g, 'evasión'],
   [/^Microsoft Security Advisory\b/, 'Aviso de seguridad de Microsoft'], [/\bImpersonación\b/g, 'Suplantación'], [/\bimpersonación\b/g, 'suplantación'],
   [/\bcomputación de la raíz\b/g, 'cálculo de la raíz'],
+  [/\bde la oficina trasera\b/g, 'del panel de administración'], [/\bla oficina trasera\b/g, 'el panel de administración'], [/\boficina trasera\b/g, 'panel de administración'],
+  [/\bisolación\b/g, 'aislamiento'], [/\bIsolación\b/g, 'Aislamiento'],
 ];
 const pule = (es: string) => RETOQUES.reduce((t, [de, a]) => t.replace(de, a), es);
 
@@ -58,7 +60,7 @@ export function aplica(alertas: Alerta[], mapa: Mapa) {
 }
 /** Lo mismo para los resúmenes (`summary_es`). */
 export function aplicaResumenes(alertas: Alerta[], mapa: Mapa) {
-  for (const a of alertas) { const es = a.summary ? mapa[a.summary] : ''; if (es) a.summary_es = es; else delete a.summary_es; }
+  for (const a of alertas) { const es = a.summary ? mapa[a.summary] : ''; if (es) a.summary_es = pule(es); else delete a.summary_es; }
 }
 
 export const pendientes = (alertas: Alerta[], mapa: Mapa) =>
