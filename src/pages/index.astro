@@ -4,6 +4,8 @@ import Portada from '../components/Portada.astro';
 import Mapa from '../components/Mapa.astro';
 import Ilustracion from '../components/Ilustracion.astro';
 import { SITE } from '../data/site';
+import { FUENTES } from '../../ingest/fuentes.mjs';
+const nPlataformas = FUENTES.filter((f: { kind: string }) => f.kind === 'platform').length;
 const filtros = [
   { k: 'todo', t: 'Lo importante' },
   { k: 'amplio', t: 'Lo más usado' },
@@ -24,7 +26,7 @@ const vigilar = [
 ];
 const filas = [
   { il: 'vuln', t: 'Fallas en ataque', p: 'Las pocas fallas que ya se usan en ataques reales, con la versión que las corrige.', cta: ['Ver fallas', '/alertas?f=vulnerability'] },
-  { il: 'servidores', t: '¿Tu sitio o tu proveedor?', p: 'El estado oficial de 25 plataformas: hosting, DNS, pagos y correo.', cta: ['Ver plataformas', '#plataformas'] },
+  { il: 'servidores', t: '¿Tu sitio o tu proveedor?', p: `El estado oficial de ${nPlataformas} plataformas: hospedaje, cobros, facturas, tiendas en línea y correo.`, cta: ['Ver plataformas', '#plataformas'] },
   { il: 'senal', t: 'Cortes por país', p: 'Si un país pierde conexión, tus visitantes de ahí no llegan. México, por proveedor y por estado.', cta: ['Ver México', '/mexico'] },
 ] as const;
 const perfiles = [

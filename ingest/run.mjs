@@ -46,7 +46,9 @@ function nivel(alertas, plataformas) {
   const muyUsado = (a) => a.extra?.reach?.level === 'wide';
   const suma = (xs) => xs.reduce((n, x) => n + x, 0);
 
-  const caidas = plataformas.filter((p) => p.indicator === 'critical'), mayores = plataformas.filter((p) => p.indicator === 'major');
+  // Solo cuentan las plataformas de uso masivo; las demás (`counts_for_level: false`) se muestran y avisan, pero no mueven el nivel.
+  const masivas = plataformas.filter((p) => p.counts_for_level !== false);
+  const caidas = masivas.filter((p) => p.indicator === 'critical'), mayores = masivas.filter((p) => p.indicator === 'major');
   // Una alerta que junta varias fallas cuenta por las que junta.
   const enAtaque = activas.filter((a) => a.source === 'cisa-kev' && muyUsado(a) && reciente(a, 72));
   const nAtaque = suma(enAtaque.map((a) => a.extra?.grouped ?? 1));

@@ -374,7 +374,9 @@ async function radar() {
 
 /* ------------------------------------------------------------------ Plataformas */
 
-// Páginas de estado con API de Statuspage (v2). `stack` marca las que más pesan para sitios web y apps.
+// Páginas de estado con API de Statuspage (v2).
+// `cuenta: false` = se muestra y avisa igual, pero no mueve el nivel del día: su falla no alcanza a la mayoría de los
+// sitios (ver `nivel` en run.mjs y /metodologia). Sin esa marca, una falla parcial de un servicio chico subiría el nivel.
 export const PLATAFORMAS = [
   { id: 'cloudflare', name: 'Cloudflare', base: 'https://www.cloudflarestatus.com', grupo: 'infraestructura' },
   { id: 'github', name: 'GitHub', base: 'https://www.githubstatus.com', grupo: 'desarrollo' },
@@ -398,6 +400,34 @@ export const PLATAFORMAS = [
   { id: 'claude', name: 'Claude', base: 'https://status.claude.com', grupo: 'ia' },
   { id: 'atlassian', name: 'Atlassian', base: 'https://status.atlassian.com', grupo: 'desarrollo' },
   { id: 'dropbox', name: 'Dropbox', base: 'https://status.dropbox.com', grupo: 'datos' },
+  // Lo que usa un negocio en México: cobros, bancos, facturas, tienda en línea, hospedaje, correo y trabajo diario.
+  // Solo entran las que publican una página de estado que se puede leer (revisadas el 14 de noviembre de 2026).
+  { id: 'conekta', name: 'Conekta', base: 'https://status.conekta.com', grupo: 'pagos', cuenta: false },
+  { id: 'kushki', name: 'Kushki', base: 'https://status.kushkipagos.com', grupo: 'pagos', cuenta: false },
+  { id: 'payu', name: 'PayU Latam', base: 'https://status.payulatam.com', grupo: 'pagos', cuenta: false },
+  { id: 'ebanx', name: 'EBANX', base: 'https://status.ebanx.com', grupo: 'pagos', cuenta: false },
+  { id: 'bitso', name: 'Bitso', base: 'https://status.bitso.com', grupo: 'pagos', cuenta: false },
+  // Ningún banco mexicano publica una página de estado legible. Estos dos servicios conectan con los bancos y con el SAT,
+  // y reportan cuando esas conexiones fallan.
+  { id: 'belvo', name: 'Belvo', base: 'https://status.belvo.com', grupo: 'bancos', cuenta: false },
+  { id: 'syncfy', name: 'Syncfy', base: 'https://status.syncfy.com', grupo: 'bancos', cuenta: false },
+  // Timbrado de facturas (PAC). Su página también reporta los servicios del SAT.
+  { id: 'sw', name: 'SW Sapien', base: 'https://status.sw.com.mx', grupo: 'facturación', cuenta: false },
+  { id: 'shopify', name: 'Shopify', base: 'https://www.shopifystatus.com', grupo: 'tiendas' },
+  { id: 'tiendanube', name: 'Tiendanube', base: 'https://status.tiendanube.com', grupo: 'tiendas', cuenta: false },
+  { id: 'vtex', name: 'VTEX', base: 'https://status.vtex.com', grupo: 'tiendas', cuenta: false },
+  { id: 'wix', name: 'Wix', base: 'https://status.wix.com', grupo: 'tiendas' },
+  { id: 'squarespace', name: 'Squarespace', base: 'https://status.squarespace.com', grupo: 'tiendas', cuenta: false },
+  { id: 'hostinger', name: 'Hostinger', base: 'https://statuspage.hostinger.com', grupo: 'infraestructura' },
+  { id: 'linode', name: 'Akamai Cloud (Linode)', base: 'https://status.linode.com', grupo: 'infraestructura', cuenta: false },
+  { id: 'kinsta', name: 'Kinsta', base: 'https://status.kinsta.com', grupo: 'infraestructura', cuenta: false },
+  { id: 'hubspot', name: 'HubSpot', base: 'https://status.hubspot.com', grupo: 'comunicación', cuenta: false },
+  { id: 'brevo', name: 'Brevo', base: 'https://status.brevo.com', grupo: 'comunicación', cuenta: false },
+  { id: 'mailgun', name: 'Mailgun', base: 'https://status.mailgun.com', grupo: 'comunicación', cuenta: false },
+  { id: 'notion', name: 'Notion', base: 'https://www.notion-status.com', grupo: 'trabajo', cuenta: false },
+  { id: 'canva', name: 'Canva', base: 'https://www.canvastatus.com', grupo: 'trabajo', cuenta: false },
+  { id: 'calendly', name: 'Calendly', base: 'https://www.calendlystatus.com', grupo: 'trabajo', cuenta: false },
+  { id: 'zapier', name: 'Zapier', base: 'https://status.zapier.com', grupo: 'trabajo', cuenta: false },
 ];
 
 const IMPACTO = { critical: 'critical', major: 'high', minor: 'medium', maintenance: 'info', none: 'info' };
@@ -411,7 +441,7 @@ async function statuspage(p) {
   try {
     [st, inc] = await Promise.all([pedir(`${p.base}/api/v2/status.json`, { timeout: 15_000 }), pedir(`${p.base}/api/v2/incidents/unresolved.json`, { timeout: 15_000 })]);
   } catch (e) {
-    if (!/HTTP 404/.test(String(e?.message))) throw e;
+    if (!/HTTP 40[34]/.test(String(e?.message))) throw e; // algunas (VTEX) niegan las rutas clásicas con 403
     st = inc = await pedir(`${p.base}/api/v2/summary.json`, { timeout: 15_000 });
   }
   const incidentes = (inc.incidents ?? []).map((i) => ({
@@ -423,7 +453,7 @@ async function statuspage(p) {
     published: iso(i.started_at ?? i.created_at), updated: iso(i.updated_at), status: 'active',
     tags: [p.grupo, ...(i.components ?? []).slice(0, 4).map((c) => c.name)], extra: { platform: p.id, phase: i.status, impact: i.impact },
   }));
-  return { plataforma: { id: p.id, name: p.name, group: p.grupo, url: p.base, indicator: st.status?.indicator ?? 'none', description: st.status?.description ?? '', incidents: incidentes.length }, incidentes: agrupa(p, incidentes) };
+  return { plataforma: { id: p.id, name: p.name, group: p.grupo, url: p.base, counts_for_level: p.cuenta !== false, indicator: st.status?.indicator ?? 'none', description: st.status?.description ?? '', incidents: incidentes.length }, incidentes: agrupa(p, incidentes) };
 }
 
 // Menos ruido: cuando una plataforma tiene tres o más incidentes menores abiertos a la vez (lo habitual en las que
@@ -458,7 +488,7 @@ async function stripe() {
   const j = await pedir('https://status.stripe.com/current');
   const caidos = Object.entries(j.statuses ?? {}).filter(([, v]) => v !== 'up');
   const indicator = j.largestatus === 'up' ? 'none' : caidos.length > 2 ? 'major' : 'minor';
-  const plataforma = { id: 'stripe', name: 'Stripe', group: 'pagos', url: 'https://status.stripe.com', indicator, description: j.message ?? '', incidents: caidos.length ? 1 : 0 };
+  const plataforma = { id: 'stripe', name: 'Stripe', group: 'pagos', url: 'https://status.stripe.com', counts_for_level: true, indicator, description: j.message ?? '', incidents: caidos.length ? 1 : 0 };
   const incidentes = caidos.length ? [{
     id: `status:stripe:${caidos.map(([k]) => k).join('-')}`, source: 'status-stripe', category: 'platform', severity: IMPACTO[indicator],
     title: `Stripe: degradación en ${caidos.map(([k]) => k).join(', ')}`, summary: recorta(j.message), action: ACCION_PLATAFORMA, url: 'https://status.stripe.com',
@@ -479,7 +509,7 @@ async function gcp() {
     tags: ['infraestructura', ...(i.affected_products ?? []).slice(0, 4).map((x) => x.title)], extra: { platform: 'gcp' },
   }));
   const peor = incidentes.some((i) => i.severity === 'high') ? 'major' : incidentes.length ? 'minor' : 'none';
-  return { plataforma: { id: 'gcp', name: 'Google Cloud', group: 'infraestructura', url: 'https://status.cloud.google.com', indicator: peor, description: incidentes.length ? `${incidentes.length} incidente(s) abierto(s)` : 'Sin incidentes abiertos', incidents: incidentes.length }, incidentes };
+  return { plataforma: { id: 'gcp', name: 'Google Cloud', group: 'infraestructura', url: 'https://status.cloud.google.com', counts_for_level: true, indicator: peor, description: incidentes.length ? `${incidentes.length} incidente(s) abierto(s)` : 'Sin incidentes abiertos', incidents: incidentes.length }, incidentes };
 }
 
 // AWS: el RSS mezcla avisos abiertos y cierres; se toman las últimas 24 h y se descartan los que ya anuncian resolución.
@@ -496,7 +526,7 @@ async function aws() {
     title: `AWS: ${recorta(e.titulo, 160)}`, summary: recorta(e.resumen), action: ACCION_PLATAFORMA, url: 'https://health.aws.amazon.com/health/status', published: iso(e.fecha), status: 'active', tags: ['infraestructura'], extra: { platform: 'aws' },
   }));
   const peor = incidentes.some((i) => i.severity === 'high') ? 'major' : incidentes.length ? 'minor' : 'none';
-  return { plataforma: { id: 'aws', name: 'AWS', group: 'infraestructura', url: 'https://health.aws.amazon.com/health/status', indicator: peor, description: incidentes.length ? `${incidentes.length} aviso(s) abierto(s) en 24 h` : 'Sin avisos abiertos', incidents: incidentes.length }, incidentes };
+  return { plataforma: { id: 'aws', name: 'AWS', group: 'infraestructura', url: 'https://health.aws.amazon.com/health/status', counts_for_level: true, indicator: peor, description: incidentes.length ? `${incidentes.length} aviso(s) abierto(s) en 24 h` : 'Sin avisos abiertos', incidents: incidentes.length }, incidentes };
 }
 
 /* ------------------------------------------------------------------ Contexto */

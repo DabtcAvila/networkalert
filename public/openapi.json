@@ -1013,6 +1013,10 @@
      "group": {
       "type": "string"
      },
+     "counts_for_level": {
+      "type": "boolean",
+      "description": "true: su falla cuenta para el nivel del día (plataformas de uso masivo). false: se muestra y avisa, pero no mueve el nivel."
+     },
      "url": {
       "type": "string",
       "format": "uri"
