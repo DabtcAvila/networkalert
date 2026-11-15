@@ -67,7 +67,7 @@ const urlKev = (texto) => `https://www.cisa.gov/known-exploited-vulnerabilities-
 // El nombre exacto de CISA queda en `extra.name`.
 const quitaInicio = (t, pre) => (pre && t.toLowerCase().startsWith(`${pre.toLowerCase()} `) ? t.slice(pre.length).trim() : null);
 export function etiquetaKev(v) {
-  const fab = String(v.vendorProject ?? '').trim(), prod = String(v.product ?? '').trim();
+  const fab = String(v.vendorProject ?? '').trim(), prod = String(v.product ?? '').trim().replace(/ and /g, ' y ');
   if (!prod || prod.toLowerCase() === fab.toLowerCase()) return fab;
   if (/^multiple\b/i.test(prod)) return `${fab} (varios productos)`;
   // «PHP Group» + «PHP» se queda en «PHP»; «WordPress» + «WordPress Core», en «WordPress Core».

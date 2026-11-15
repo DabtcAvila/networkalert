@@ -62,7 +62,8 @@ const VERSION = '1.0.0';
 const SITIO = 'https://networkalert.dev';
 const CLAVE = 'snapshot:v1';
 // v2: glosario corregido («denegación de servicio», «evasión»); al cambiar la clave se vuelve a traducir todo.
-const CLAVE_TITULOS = 'titulos:es:v2';
+// v3: tipos de falla en palabras llanas y comprobación menos estricta del nombre del producto.
+const CLAVE_TITULOS = 'titulos:es:v3';
 const CLAVE_RESUMENES = 'resumenes:es:v1';
 const CUERPO_MAX = 2 * 1024 * 1024;
 const ORDEN: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };

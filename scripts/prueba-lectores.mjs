@@ -27,6 +27,7 @@ const titulos = [
   [{ vendorProject: 'Collabora', product: 'Collabora Online – Built-in CODE Server', vulnerabilityName: 'Collabora Online – Built-in CODE Server OS Command Injection Vulnerability' }, 'Collabora Online – Built-in CODE Server: OS Command Injection'],
   [{ vendorProject: 'Barracuda Networks', product: 'Barracuda Email Security Gateway (ESG)', vulnerabilityName: 'Barracuda Networks Email Security Gateway (ESG) Authentication Bypass Vulnerability' }, 'Barracuda Networks: Email Security Gateway (ESG) Authentication Bypass'],
   [{ vendorProject: 'Microsoft', product: 'Office', vulnerabilityName: 'Microsoft Office Outlook Missing User Interaction Vulnerability' }, 'Microsoft Office: Outlook Missing User Interaction'],
+  [{ vendorProject: 'Adobe', product: 'Commerce and Magento', vulnerabilityName: 'Adobe Commerce and Magento Unrestricted Upload of File with Dangerous Type Vulnerability' }, 'Adobe Commerce y Magento: Unrestricted Upload of File with Dangerous Type'],
   [{ vendorProject: 'GPUStack', product: 'GPUStack', vulnerabilityName: 'GPUStack Improper Authentication Vulnerability' }, 'GPUStack: Improper Authentication'],
   [{ vendorProject: 'Broadcom', product: 'VMware ESX', vulnerabilityName: 'Broadcom VMWare ESX Insufficient Logging Vulnerability' }, 'Broadcom VMware ESX: Insufficient Logging'],
 ];

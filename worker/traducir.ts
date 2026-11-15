@@ -79,7 +79,12 @@ function valida(orig: string, es: string): boolean {
   for (const id of orig.match(/CVE-\d{4}-\d+|VU#\d+/gi) ?? []) if (!es.toLowerCase().includes(id.toLowerCase())) return false;
   const i = orig.indexOf(': ');
   // El nombre antes de los dos puntos (empresa o producto) debe seguir presente, en el orden que sea.
-  if (i > 0 && i < 40 && !orig.slice(0, i).split(/\s+/).every((p) => es.toLowerCase().includes(p.toLowerCase()))) return false;
+  // Debe estar la primera palabra y al menos 6 de cada 10: un producto puede traer una palabra común que sí se traduce
+  // («Built-in», «Server», «and»), y por una sola no se descarta toda la traducción.
+  if (i > 0 && i < 40) {
+    const bajo = es.toLowerCase(), palabras = orig.slice(0, i).split(/\s+/).filter((p) => /[a-z0-9]/i.test(p) && !/^(and|of|for|the)$/i.test(p));
+    if (palabras.length && (!bajo.includes(palabras[0].toLowerCase()) || palabras.filter((p) => bajo.includes(p.toLowerCase())).length < Math.ceil(palabras.length * 0.6))) return false;
+  }
   return true;
 }
 
