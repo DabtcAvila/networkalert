@@ -529,6 +529,42 @@ async function aws() {
   return { plataforma: { id: 'aws', name: 'AWS', group: 'infraestructura', url: 'https://health.aws.amazon.com/health/status', counts_for_level: true, indicator: peor, description: incidentes.length ? `${incidentes.length} aviso(s) abierto(s) en 24 h` : 'Sin avisos abiertos', incidents: incidentes.length }, incidentes };
 }
 
+// Slack publica un JSON propio con los incidentes abiertos. `type`: outage (caída), incident (falla) o notice (aviso).
+async function slack() {
+  const j = await pedir('https://slack-status.com/api/v2.0.0/current');
+  const SEV = { outage: 'high', incident: 'medium', notice: 'info' };
+  const incidentes = (j.active_incidents ?? []).map((i) => ({
+    id: `status:slack:${i.id}`, source: 'status-slack', category: 'platform', severity: SEV[i.type] ?? 'medium',
+    title: `Slack: ${recorta(i.title, 160)}`, summary: recorta(i.notes?.[0]?.body ?? ''), action: ACCION_PLATAFORMA,
+    url: i.url || 'https://slack-status.com', published: iso(i.date_created), updated: iso(i.date_updated), status: 'active',
+    tags: ['trabajo', ...(i.services ?? []).slice(0, 4)], extra: { platform: 'slack', phase: i.status ?? null },
+  }));
+  const peor = incidentes.some((i) => i.severity === 'high') ? 'major' : incidentes.some((i) => i.severity === 'medium') ? 'minor' : 'none';
+  return { plataforma: { id: 'slack', name: 'Slack', group: 'trabajo', url: 'https://slack-status.com', counts_for_level: false, indicator: peor, description: incidentes.length ? `${incidentes.length} incidente(s) abierto(s)` : 'Sin incidentes abiertos', incidents: incidentes.length }, incidentes };
+}
+
+// PayPal publica un canal RSS con un registro por evento, en su último estado. El título empieza con ese estado
+// («Initial Notification», «Update», «Resolved», «Detected Resolved»…). Solo cuenta como abierto un evento de las
+// últimas 24 h que no sea mantenimiento ni esté cerrado. Límite conocido: PayPal reporta muchas fallas cuando ya
+// terminaron («Detected Resolved»), así que esas nunca aparecen aquí como activas.
+export function abiertosPaypal(entradas, ahora = Date.now()) {
+  const cerrado = /^(detected\s+)?resolved\b|^completed\b|^postponed\b|^rescheduled\b|^cancell?ed\b/i;
+  return entradas
+    .filter((e) => ahora - Date.parse(e.fecha) <= DIA && !/maintenance/i.test(e.titulo))
+    .map((e) => { const [, estado = '', resto = e.titulo] = e.titulo.match(/^((?:[A-Za-z ]+:\s*)+)(.*)$/) ?? []; return { ...e, estado: estado.trim(), nombre: resto.replace(/\s*\(PP-LIVE-\d+\)\s*$/, '').trim() }; })
+    .filter((e) => !cerrado.test(e.estado) && !/have resolved the issue|has been (resolved|mitigated)/i.test(e.resumen));
+}
+async function paypal() {
+  const xml = await pedir('https://www.paypal-status.com/feed/rss', { tipo: 'texto' });
+  const incidentes = abiertosPaypal(leerFeed(xml)).map((e) => ({
+    id: `status:paypal:${e.titulo.match(/PP-LIVE-(\d+)/)?.[1] ?? e.id.split('/').pop()}`, source: 'status-paypal', category: 'platform', severity: /outage|unavailable/i.test(`${e.nombre} ${e.resumen}`) ? 'high' : 'medium',
+    title: `PayPal: ${recorta(e.nombre, 160)}`, summary: recorta(e.resumen), action: ACCION_PLATAFORMA, url: e.url || 'https://www.paypal-status.com',
+    published: iso(e.fecha), status: 'active', tags: ['pagos'], extra: { platform: 'paypal' },
+  }));
+  const peor = incidentes.some((i) => i.severity === 'high') ? 'major' : incidentes.length ? 'minor' : 'none';
+  return { plataforma: { id: 'paypal', name: 'PayPal', group: 'pagos', url: 'https://www.paypal-status.com', counts_for_level: true, indicator: peor, description: incidentes.length ? `${incidentes.length} incidente(s) abierto(s)` : 'Sin incidentes abiertos', incidents: incidentes.length }, incidentes };
+}
+
 /* ------------------------------------------------------------------ Contexto */
 
 // SANS Internet Storm Center: semáforo global de amenaza (verde/amarillo/naranja/rojo). CC BY-NC-SA.
@@ -620,6 +656,8 @@ export const FUENTES = [
   { id: 'status-stripe', name: 'Stripe Status', url: 'https://status.stripe.com', license: 'Página de estado pública', kind: 'platform', run: stripe },
   { id: 'status-gcp', name: 'Google Cloud Status', url: 'https://status.cloud.google.com', license: 'Página de estado pública', kind: 'platform', run: gcp },
   { id: 'status-aws', name: 'AWS Health', url: 'https://health.aws.amazon.com/health/status', license: 'Página de estado pública', kind: 'platform', run: aws },
+  { id: 'status-slack', name: 'Slack Status', url: 'https://slack-status.com', license: 'Página de estado pública', kind: 'platform', run: slack },
+  { id: 'status-paypal', name: 'PayPal Status', url: 'https://www.paypal-status.com', license: 'Página de estado pública', kind: 'platform', run: paypal },
   { id: 'sans-infocon', name: 'SANS ISC Infocon', url: 'https://isc.sans.edu/infocon.html', license: 'CC BY-NC-SA 3.0 US', kind: 'context', run: infocon },
   { id: 'first-epss', name: 'FIRST EPSS', url: 'https://www.first.org/epss/', license: 'Uso libre con atribución (FIRST.org)', kind: 'enrichment', run: null },
   { id: 'ecosystems', name: 'ecosyste.ms · uso de cada paquete', url: 'https://packages.ecosyste.ms', license: 'CC BY-SA 4.0', kind: 'enrichment', run: null },

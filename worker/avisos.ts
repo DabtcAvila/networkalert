@@ -57,7 +57,7 @@ async function envia(env: EnvAvisos & { EMAIL: Correo }, para: string, llave: st
 <p style="margin:0 0 16px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#5b3df5">NETWORK ALERT</p>
 <h1 style="margin:0 0 12px;font-size:21px;line-height:1.3">${esc(m.titulo)}</h1>
 ${m.intro ? `<p style="margin:0 0 16px;font-size:15px;color:#3d3b57">${esc(m.intro)}</p>` : ''}
-${(m.puntos ?? []).map((p) => `<div style="margin:0 0 12px;padding:12px 14px;border:1px solid #e4e2f0;border-left:4px solid ${p.marca === 'Urgente' || p.marca === 'Crítica' ? '#c8372d' : p.marca === 'Bien' ? '#2f8f6b' : '#c98a12'};border-radius:8px">
+${(m.puntos ?? []).map((p) => `<div style="margin:0 0 12px;padding:12px 14px;border:1px solid #e4e2f0;border-left:4px solid ${p.marca === 'Atender hoy' || p.marca === 'Crítica' ? '#c8372d' : p.marca === 'Bien' ? '#2f8f6b' : '#c98a12'};border-radius:8px">
 ${p.marca ? `<p style="margin:0 0 2px;font-size:12px;font-weight:700;color:#6b6985">${esc(p.marca.toUpperCase())}</p>` : ''}<p style="margin:0;font-size:15px;font-weight:600">${p.url ? `<a href="${esc(p.url)}" style="color:#14132b">${esc(p.titulo)}</a>` : esc(p.titulo)}</p>
 ${p.detalle ? `<p style="margin:4px 0 0;font-size:14px;color:#3d3b57">${esc(p.detalle)}</p>` : ''}</div>`).join('\n')}
 ${m.boton ? `<p style="margin:20px 0"><a href="${esc(m.boton.url)}" style="display:inline-block;padding:12px 22px;background:#5b3df5;color:#fff;font-weight:600;font-size:15px;text-decoration:none;border-radius:999px">${esc(m.boton.texto)}</a></p>` : ''}
@@ -178,7 +178,9 @@ export async function baja(env: EnvAvisos, t: unknown): Promise<Salida> {
 // ---------------------------------------------------------------------------
 // Vuelta del reloj: revisa dominios pendientes y avisa de alertas nuevas.
 // ---------------------------------------------------------------------------
-const ETIQUETA: Record<Nivel, string> = { urgent: 'Urgente', fix: 'Por atender', improve: 'Mejora', ok: 'Bien' };
+// En el correo no se usa la palabra «Urgente»: un aviso de seguridad con esa palabra y un botón se parece a un fraude,
+// y los filtros de correo lo tratan así (pasó el 14 de noviembre de 2026 en un buzón de Microsoft 365).
+const ETIQUETA: Record<Nivel, string> = { urgent: 'Atender hoy', fix: 'Por atender', improve: 'Mejora', ok: 'Bien' };
 const SEV: Record<string, string> = { critical: 'Crítica', high: 'Alta' };
 
 async function vueltaDominios(env: EnvAvisos & { DB: D1Database; EMAIL: Correo }, propio: (dominio: string) => ((url: string) => Promise<Response>) | undefined) {
@@ -215,7 +217,7 @@ async function vueltaDominios(env: EnvAvisos & { DB: D1Database; EMAIL: Correo }
             ? `${d.dominio}: primera revisión, ${serios.length ? `${serios.length} ${serios.length === 1 ? 'cosa' : 'cosas'} por atender` : 'todo en orden'}`
             : `${d.dominio}: ${nuevos[0].title}${nuevos.length > 1 ? ` (y ${nuevos.length - 1} más)` : ''}`,
           titulo: q.primera ? `Primera revisión de ${d.dominio}` : `${d.dominio} necesita atención`,
-          intro: lista.length ? (q.primera ? 'Esto es lo que conviene atender. Te volveremos a escribir solo si aparece algo nuevo o algo empeora.' : 'Esto cambió desde la última revisión:') : 'No encontramos nada urgente ni por atender. Lo revisaremos cada día y te escribiremos solo si algo cambia.',
+          intro: lista.length ? (q.primera ? `Pediste que vigiláramos ${d.dominio}. Esto es lo que conviene atender. Te volveremos a escribir solo si aparece algo nuevo o algo empeora.` : `Vigilamos ${d.dominio} porque lo pediste. Esto cambió desde la última revisión:`) : `Pediste que vigiláramos ${d.dominio}. No encontramos nada que atender. Lo revisaremos cada día y te escribiremos solo si algo cambia.`,
           puntos: lista.map((h) => ({ marca: ETIQUETA[h.level], titulo: h.title, detalle: h.action })),
           boton: { texto: 'Ver la revisión completa', url: enlace },
           nota: 'Revisión hecha desde fuera, con datos públicos. Es una orientación, no una auditoría.',

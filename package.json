@@ -16,6 +16,7 @@
     "ingest:publicar": "node ingest/run.mjs --publicar",
     "vigia": "node ingest/vigia.mjs",
     "prueba:revisor": "node scripts/prueba-revisor.mjs",
+    "prueba:lectores": "node scripts/prueba-lectores.mjs",
     "preview": "astro build && wrangler dev",
     "deploy:preview": "astro build && wrangler deploy --env preview",
     "deploy": "astro build && wrangler deploy",

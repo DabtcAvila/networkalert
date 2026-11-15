@@ -4,7 +4,7 @@
 
 ## In English
 
-Network Alert is a free, public feed of the Internet risks that can take a website or app down: vulnerabilities exploited in the wild (CISA KEV), critical package advisories (GitHub Advisory Database), status of 48 platforms (hosting, payments, invoicing, online stores, email) and Internet outages by country, with extra detail for Mexico (by ISP and by state). Everything is refreshed every 10 minutes and links to its primary source. The site is in Spanish.
+Network Alert is a free, public feed of the Internet risks that can take a website or app down: vulnerabilities exploited in the wild (CISA KEV), critical package advisories (GitHub Advisory Database), status of 50 platforms (hosting, payments, invoicing, online stores, email) and Internet outages by country, with extra detail for Mexico (by ISP and by state). Everything is refreshed every 10 minutes and links to its primary source. The site is in Spanish.
 
 - **API**: JSON, no key, open CORS. Start at [`/api/v1/status`](https://networkalert.dev/api/v1/status) and [`/api/v1/alerts`](https://networkalert.dev/api/v1/alerts). Spec: [OpenAPI 3.1](https://networkalert.dev/openapi.json). Docs: [networkalert.dev/api](https://networkalert.dev/api).
 - **Feeds**: [RSS](https://networkalert.dev/feed.xml) and [JSON Feed](https://networkalert.dev/feed.json) with high and critical alerts.
