@@ -44,7 +44,8 @@ const titulosDe = (alertas: Alerta[]) => alertas.flatMap((a) => [...(enEspanol(a
 const RETOQUES: [RegExp, string][] = [
   [/\bel bypass\b/g, 'la evasión'], [/\bun bypass\b/g, 'una evasión'], [/\bBypass\b/g, 'Evasión'], [/\bbypass\b/g, 'evasión'],
   [/^Microsoft Security Advisory\b/, 'Aviso de seguridad de Microsoft'], [/\bImpersonación\b/g, 'Suplantación'], [/\bimpersonación\b/g, 'suplantación'],
-  [/\bcomputación de la raíz\b/g, 'cálculo de la raíz'],
+  [/\bla computación de la raíz\b/g, 'el cálculo de la raíz'], [/\bcomputación de la raíz\b/g, 'cálculo de la raíz'], [/\bla cálculo\b/g, 'el cálculo'],
+  [/\bEvación\b/g, 'Evasión'], [/\bevación\b/g, 'evasión'], [/\bconbinador\b/g, 'combinador'],
   [/\bde la oficina trasera\b/g, 'del panel de administración'], [/\bla oficina trasera\b/g, 'el panel de administración'], [/\boficina trasera\b/g, 'panel de administración'],
   [/\bisolación\b/g, 'aislamiento'], [/\bIsolación\b/g, 'Aislamiento'],
 ];

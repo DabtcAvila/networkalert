@@ -51,7 +51,7 @@ function leerFeed(xml) {
 
 // CISA KEV: vulnerabilidades con explotación confirmada en el mundo real. Dominio público (gobierno de EE. UU.).
 // CISA escribe «Multiple Products» cuando la falla toca varios productos del fabricante.
-const productoKev = (v) => (!v.product || v.product === v.vendorProject ? '' : /^multiple\b/i.test(v.product) ? ' para varios de sus productos' : ` para ${v.product}`);
+const productoKev = (v) => (!v.product || v.product === v.vendorProject ? '' : /^multiple\b/i.test(v.product) ? ' para varios de sus productos' : /^kernel$/i.test(v.product) ? ' para el kernel' : ` para ${v.product.replace(/ and /g, ' y ')}`);
 // La fecha límite es para agencias de EE. UU., pero sirve de referencia. Cuando ya pasó se dice así, en vez de dejar una fecha vieja como si faltara.
 function plazoKev(due) {
   const f = fechaLarga(due);
@@ -63,6 +63,14 @@ function plazoKev(due) {
 const accionKev = (v) => `Instala la corrección que publicó ${v.vendorProject || 'el fabricante'}${productoKev(v)}. Si aún no existe, aplica sus medidas temporales o deja de usar el producto.${plazoKev(v.dueDate)}`;
 const urlKev = (texto) => `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=${encodeURIComponent(texto)}`;
 const nombreKev = (v) => (String(v.vulnerabilityName ?? '').toLowerCase().startsWith(String(v.vendorProject ?? '').toLowerCase()) ? v.vulnerabilityName : `${v.vendorProject} ${v.product}: ${v.vulnerabilityName}`);
+
+// «Qué puede pasar» en las fallas en ataque. CISA declara el tipo de falla (CWE) pero no el vector, y lo afectado puede
+// ser un servidor, una computadora o un teléfono: por eso se dice «el equipo afectado» y no «tu servidor».
+export function riesgoKev(cwes) {
+  const r = riesgoDe(cwes);
+  return r ? r.replace('en tu servidor', 'en el equipo afectado').replace('de tu servidor', 'del equipo afectado').replace('tu servidor', 'el equipo afectado')
+    .replace('tu base de datos', 'la base de datos').replace('tu servicio', 'el servicio').replace('tus usuarios', 'los usuarios').replace('de tu sitio', 'del sitio') : null;
+}
 
 export function alertasKev(vulnerabilidades) {
   // Menos ruido: las fallas del mismo producto que CISA agregó el mismo día y con la misma fecha límite piden lo mismo
@@ -83,11 +91,13 @@ export function alertasKev(vulnerabilidades) {
       summary: recorta(v.shortDescription),
       url: urlKev(v.cveID),
       tags: ['explotada', v.vendorProject, v.product].filter(Boolean),
-      extra: { cve: v.cveID, ransomware, due: v.dueDate, action: recorta(v.requiredAction, 240), cwes: v.cwes ?? [] },
+      extra: { cve: v.cveID, ransomware, due: v.dueDate, action: recorta(v.requiredAction, 240), cwes: v.cwes ?? [], ...(riesgoKev(v.cwes) ? { risk: riesgoKev(v.cwes) } : {}) },
     };
     // «PHP Group» + «PHP» se queda en «PHP»; «Multiple Products» no se pone.
     const soloProducto = v.product && String(v.vendorProject ?? '').toLowerCase().includes(String(v.product).toLowerCase());
     const producto = soloProducto ? v.product : [v.vendorProject, /^multiple\b/i.test(v.product ?? '') ? '' : v.product].filter(Boolean).join(' ');
+    // De un grupo se dice el riesgo más grave entre sus fallas (la tabla va de lo más grave a lo menos).
+    const r = riesgoKev([...new Set(vs.flatMap((x) => x.cwes ?? []))]), riesgoGrupo = r ? `Lo más grave: ${r[0].toLowerCase()}${r.slice(1)}` : null;
     return {
       ...base,
       id: `kev:grupo:${`${v.vendorProject}-${v.product}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}:${String(v.dateAdded).slice(0, 10)}`,
@@ -95,7 +105,7 @@ export function alertasKev(vulnerabilidades) {
       summary: recorta(vs.map((x) => x.shortDescription).join(' '), 480),
       url: urlKev(producto),
       tags: ['explotada', v.vendorProject, v.product, ...vs.map((x) => x.cveID)].filter(Boolean),
-      extra: { grouped: vs.length, ransomware, due: v.dueDate, cwes: [...new Set(vs.flatMap((x) => x.cwes ?? []))],
+      extra: { grouped: vs.length, ransomware, due: v.dueDate, cwes: [...new Set(vs.flatMap((x) => x.cwes ?? []))], ...(riesgoGrupo ? { risk: riesgoGrupo } : {}),
         advisories: vs.map((x) => ({ id: x.cveID, title: nombreKev(x), url: urlKev(x.cveID), severity: x.knownRansomwareCampaignUse === 'Known' ? 'critical' : 'high', published: iso(x.dateAdded) })) },
     };
   });
