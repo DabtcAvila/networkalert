@@ -62,7 +62,28 @@ function plazoKev(due) {
 }
 const accionKev = (v) => `Instala la corrección que publicó ${v.vendorProject || 'el fabricante'}${productoKev(v)}. Si aún no existe, aplica sus medidas temporales o deja de usar el producto.${plazoKev(v.dueDate)}`;
 const urlKev = (texto) => `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=${encodeURIComponent(texto)}`;
-const nombreKev = (v) => (String(v.vulnerabilityName ?? '').toLowerCase().startsWith(String(v.vendorProject ?? '').toLowerCase()) ? v.vulnerabilityName : `${v.vendorProject} ${v.product}: ${v.vulnerabilityName}`);
+// Título: «Producto: tipo de falla». CISA lo escribe todo seguido («Google Chromium Use-After-Free Vulnerability»); aquí
+// el producto va primero y separado, igual que en los avisos de paquetes, y se quita la palabra «Vulnerability».
+// El nombre exacto de CISA queda en `extra.name`.
+const quitaInicio = (t, pre) => (pre && t.toLowerCase().startsWith(`${pre.toLowerCase()} `) ? t.slice(pre.length).trim() : null);
+export function etiquetaKev(v) {
+  const fab = String(v.vendorProject ?? '').trim(), prod = String(v.product ?? '').trim();
+  if (!prod || prod.toLowerCase() === fab.toLowerCase()) return fab;
+  if (/^multiple\b/i.test(prod)) return `${fab} (varios productos)`;
+  // «PHP Group» + «PHP» se queda en «PHP»; «WordPress» + «WordPress Core», en «WordPress Core».
+  if (fab.toLowerCase().includes(prod.toLowerCase()) || prod.toLowerCase().startsWith(fab.toLowerCase())) return prod;
+  return `${fab} ${prod}`;
+}
+export function nombreKev(v) {
+  const fab = String(v.vendorProject ?? '').trim(), prod = String(v.product ?? '').trim();
+  const limpio = String(v.vulnerabilityName ?? '').replace(/\s+Vulnerabilit(y|ies)\s*$/i, '').trim();
+  const etiqueta = etiquetaKev(v);
+  const tipo = quitaInicio(limpio, `${fab} ${prod}`) ?? (prod.toLowerCase().startsWith(fab.toLowerCase()) ? quitaInicio(limpio, prod) : null);
+  if (tipo) return `${etiqueta}: ${tipo}`;
+  const sinFab = quitaInicio(limpio, fab);
+  if (sinFab) { const t = quitaInicio(sinFab, prod); return t ? `${etiqueta}: ${t}` : `${fab}: ${sinFab}`; }
+  return limpio.includes(':') ? limpio : `${etiqueta}: ${limpio}`;
+}
 
 // «Qué puede pasar» en las fallas en ataque. CISA declara el tipo de falla (CWE) pero no el vector, y lo afectado puede
 // ser un servidor, una computadora o un teléfono: por eso se dice «el equipo afectado» y no «tu servidor».
@@ -86,12 +107,11 @@ export function alertasKev(vulnerabilidades) {
     if (vs.length === 1) return {
       ...base,
       id: `kev:${v.cveID}`,
-      // El nombre que da CISA ya suele empezar con fabricante y producto; no se repiten.
       title: nombreKev(v),
       summary: recorta(v.shortDescription),
       url: urlKev(v.cveID),
       tags: ['explotada', v.vendorProject, v.product].filter(Boolean),
-      extra: { cve: v.cveID, ransomware, due: v.dueDate, action: recorta(v.requiredAction, 240), cwes: v.cwes ?? [], ...(riesgoKev(v.cwes) ? { risk: riesgoKev(v.cwes) } : {}) },
+      extra: { cve: v.cveID, name: v.vulnerabilityName ?? null, ransomware, due: v.dueDate, action: recorta(v.requiredAction, 240), cwes: v.cwes ?? [], ...(riesgoKev(v.cwes) ? { risk: riesgoKev(v.cwes) } : {}) },
     };
     // «PHP Group» + «PHP» se queda en «PHP»; «Multiple Products» no se pone.
     const soloProducto = v.product && String(v.vendorProject ?? '').toLowerCase().includes(String(v.product).toLowerCase());
@@ -121,20 +141,22 @@ async function kev() {
 // Solo entran tipos de falla cuya consecuencia es clara; los ambiguos (configuración insegura por defecto,
 // validación de datos en general) se dejan fuera para no decir algo que el aviso no dice.
 const RIESGO_CWE = [
-  [[94, 95, 96, 77, 78, 88, 917, 1336, 502], 'Un atacante puede ejecutar sus propias órdenes en tu servidor'],
+  [[94, 95, 96, 98, 470, 77, 78, 88, 917, 1336, 502], 'Un atacante puede ejecutar sus propias órdenes en tu servidor'],
   [[89, 564, 943], 'Un atacante puede leer o cambiar tu base de datos'],
-  [[287, 288, 290, 294, 302, 303, 304, 305, 306, 307, 384, 1390, 798, 259, 321], 'Un atacante puede entrar sin una contraseña válida'],
-  [[862, 863, 284, 285, 639, 269, 732], 'Alguien puede ver o hacer cosas para las que no tiene permiso'],
-  [[22, 23, 24, 35, 36, 73, 434], 'Un atacante puede leer o escribir archivos de tu servidor que no debería'],
-  [[79, 80, 83, 87], 'Un atacante puede meter código en las páginas que ven tus usuarios'],
+  [[287, 288, 289, 290, 291, 293, 294, 301, 302, 303, 304, 305, 306, 307, 384, 603, 620, 640, 1390, 798, 259, 321], 'Un atacante puede entrar sin una contraseña válida'],
+  [[862, 863, 284, 285, 639, 269, 732, 250, 266, 276, 282, 283, 425, 566], 'Alguien puede ver o hacer cosas para las que no tiene permiso'],
+  [[22, 23, 24, 35, 36, 59, 73, 434], 'Un atacante puede leer o escribir archivos de tu servidor que no debería'],
+  [[79, 80, 81, 82, 83, 84, 85, 86, 87], 'Un atacante puede meter código en las páginas que ven tus usuarios'],
   [[918], 'Un atacante puede hacer que tu servidor consulte direcciones internas en su nombre'],
   [[345, 347, 295, 296, 297, 327, 328, 326, 330, 338, 354], 'Se pueden dar por buenos datos, firmas o certificados falsos'],
-  [[200, 201, 203, 209, 212, 312, 319, 359, 522, 532, 538, 540], 'Puede quedar expuesta información que debería ser privada'],
+  [[200, 201, 203, 209, 212, 219, 256, 257, 311, 312, 319, 359, 522, 532, 538, 540, 548, 552], 'Puede quedar expuesta información que debería ser privada'],
   [[352], 'Un sitio ajeno puede hacer acciones a nombre de un usuario con la sesión abierta'],
   [[601], 'Un enlace de tu sitio puede mandar a tus usuarios a un sitio falso'],
+  [[426, 427, 428], 'Un programa puesto por el atacante puede ejecutarse en lugar del legítimo'],
+  [[331, 335, 336, 337, 340, 341, 342, 343], 'Un atacante puede adivinar claves o identificadores que deberían ser imposibles de adivinar'],
   [[611, 776], 'Un archivo preparado puede leer datos de tu servidor o dejarlo sin responder'],
-  [[119, 120, 121, 122, 125, 787, 416, 415, 190, 191, 476, 843], 'Datos preparados pueden tirar el programa o, en el peor caso, tomar su control'],
-  [[400, 770, 407, 1333, 674, 835, 834, 405, 409, 789], 'Un atacante puede dejar tu servicio lento o sin responder'],
+  [[119, 120, 121, 122, 123, 124, 125, 126, 127, 129, 131, 786, 787, 788, 805, 822, 823, 824, 825, 416, 415, 190, 191, 476, 843], 'Datos preparados pueden tirar el programa o, en el peor caso, tomar su control'],
+  [[400, 401, 770, 772, 775, 407, 1333, 674, 690, 833, 835, 834, 405, 409, 789], 'Un atacante puede dejar tu servicio lento o sin responder'],
 ];
 export function riesgoDe(cwes, vector) {
   const ids = (cwes ?? []).map((c) => Number(String(c.cwe_id ?? c).replace(/\D/g, '')));

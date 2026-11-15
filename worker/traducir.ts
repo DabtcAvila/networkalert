@@ -21,6 +21,7 @@ Reglas:
 - No agregues ni quites información. No expliques.
 - Español claro y directo. «Outage» es «caída»; «degraded performance» es «servicio lento»; «vulnerability» es «falla»; «remote code execution» es «ejecución remota de código».
 - «Denial of service» es siempre «denegación de servicio» (nunca «servicio de denegación»); «bypass» es «evasión»; «Security Advisory» es «aviso de seguridad»; «path traversal» es «salto de directorio»; «authentication» es «autenticación»; «privilege escalation» es «escalada de privilegios»; «Multiple Products» es «varios productos».
+- Tipos de falla, en palabras llanas: «Use-After-Free» es «uso de memoria ya liberada»; «Out-of-Bounds Write» es «escritura fuera de los límites de la memoria»; «Out-of-Bounds Read» es «lectura fuera de los límites de la memoria»; «Buffer Overflow» es «desbordamiento de memoria»; «Improper Authentication» es «autenticación defectuosa»; «Missing Authentication» es «falta de autenticación»; «Command Injection» es «inyección de órdenes»; «Deserialization of Untrusted Data» es «lectura insegura de datos externos»; «Race Condition» es «condición de carrera».
 - No repitas la misma idea con dos palabras («la ruta del camino»): una sola basta.
 - Responde solo con las traducciones, una por línea, cada una con el mismo número al inicio.`;
 
